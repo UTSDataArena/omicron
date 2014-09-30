@@ -985,3 +985,26 @@ float SoundEnvironment::getWetness()
 {
 	return environmentWetness;
 }
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// added for tempo clock
+// [Darren 29Sep14]
+void SoundEnvironment::startTempoClock(float tempo)
+{
+	if( soundManager->isSoundServerRunning() )
+	{
+		Message msg("/startTempoClock");
+		msg.pushFloat(tempo);
+		soundManager->sendOSCMessage(msg);
+	}
+}
+
+void SoundEnvironment::stopTempoClock()
+{
+	if( soundManager->isSoundServerRunning() )
+	{
+		Message msg("/stopTempoClock");
+		soundManager->sendOSCMessage(msg);
+	}
+}
