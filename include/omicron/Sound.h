@@ -188,6 +188,11 @@ public:
 
 	int getID();
 	int getBufferID();
+	
+	// for tempo clock [Darren 29Sep14]
+	void setUseTempoClock(bool);
+	bool isUseTempoClockEnabled();
+	
 	void setSoundEnvironment(SoundEnvironment*);
 private:
 
@@ -217,6 +222,10 @@ private:
 
 	bool useEnvironmentParameters;
 
+	// align to tempo clock when starting and stopping
+	// [Darren 29Sep14[
+	bool useTempoClock;
+	
 	SoundEnvironment* environment;
 };// SoundInstance
 

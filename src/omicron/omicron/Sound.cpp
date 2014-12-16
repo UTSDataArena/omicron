@@ -349,6 +349,8 @@ SoundInstance::SoundInstance(Sound* sound)
 
 	playState = notPlayed;
 
+	useTempoClock = false;
+	
 	if( environment->getSoundManager()->isDebugEnabled() )
 
 		ofmsg("Created SoundInstance %1% with node ID %2%", %sound->getFilePath() %instanceID);
@@ -458,12 +460,12 @@ void SoundInstance::play()
 	// Trigger for playToPosition ( 0 = off, 1 = on )
 	msg.pushInt32( 0 );
 
-	// Trigger for playToPosition ( 0 = off, 1 = on )
-	msg.pushInt32( 0 );
-
 	// Frame at which you'd like to jump to for playback.  0 is the beginning of the file.
 	msg.pushInt32( 0 );
 
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
+	
 	environment->getSoundManager()->sendOSCMessage(msg);
 
 	playState = playing;
@@ -509,6 +511,9 @@ void SoundInstance::playStereo()
 	// Frame at which you'd like to jump to for playback.  0 is the beginning of the file.
 	msg.pushInt32( 0 );
 
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
+	
 	environment->getSoundManager()->sendOSCMessage(msg);
 
 	playState = playing;
@@ -580,6 +585,9 @@ void SoundInstance::play( Vector3f position, float volume, float width, float mi
 	// Frame at which you'd like to jump to for playback.  0 is the beginning of the file.
 	msg.pushInt32( 0 );
 
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
+	
 	environment->getSoundManager()->sendOSCMessage(msg);
 
 	playState = playing;
@@ -618,6 +626,9 @@ void SoundInstance::playStereo( float volume, bool loop )
 
 	// Frame at which you'd like to jump to for playback.  0 is the beginning of the file.
 	msg.pushInt32( 0 );
+
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
 
 	environment->getSoundManager()->sendOSCMessage(msg);
 
@@ -697,6 +708,9 @@ void SoundInstance::playAtFrame( int frameNo )
 	// Frame at which you'd like to jump to for playback.  0 is the beginning of the file.
 	msg.pushInt32( frameNo );
 
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
+
 	environment->getSoundManager()->sendOSCMessage(msg);
 
 	playState = playing;
@@ -742,6 +756,9 @@ void SoundInstance::playStereoAtFrame( int frameNo )
 	// Frame at which you'd like to jump to for playback.  0 is the beginning of the file.
 	msg.pushInt32( frameNo );
 
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
+
 	environment->getSoundManager()->sendOSCMessage(msg);
 
 	playState = playing;
@@ -760,6 +777,10 @@ void SoundInstance::stop()
 	//printf( "%s: Freeing instanceID: %d\n", __FUNCTION__, instanceID);
 	Message msg("/freeNode");
 	msg.pushInt32(instanceID);
+
+	// tempo clock parameter
+	msg.pushBool( this->useTempoClock );
+
 	environment->getSoundManager()->sendOSCMessage(msg);
 
 	playState = stopped;
@@ -1203,4 +1224,18 @@ int SoundInstance::getID()
 int SoundInstance::getBufferID()
 {
 	return sound->getBufferID();
+}
+
+// added for tempo clock usage
+// [Darren 29Sep14]
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void SoundInstance::setUseTempoClock(bool value)
+{
+	this->useTempoClock = value;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool SoundInstance::isUseTempoClockEnabled()
+{
+	return this->useTempoClock;
 }
