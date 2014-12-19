@@ -223,7 +223,11 @@ void InputServer::handleEvent(const Event& evt)
     int timestamp = tb.millitm + (tb.time & 0xfffff) * 1000;
 
 #ifdef OMICRON_USE_VRPN
+#ifdef OMICRON_OS_WIN
     vrpnDevice->update(&evt);
+#else
+    vrpnDevice->myUpdate(&evt);
+#endif
 #endif
             
     int offset = 0;
@@ -549,7 +553,11 @@ void InputServer::startConnection(Config* cfg)
     ofmsg("OInputServer: Created VRPNDevice %1%", %TRACKER_NAME);
     ofmsg("              Port: %1%", %TRACKER_PORT);
     connection = vrpn_create_server_connection(TRACKER_PORT);
+#ifdef OMICRON_OS_WIN
     vrpnDevice = new vrpn_XInputGamepad(TRACKER_NAME, connection, 1);
+#else
+    vrpnDevice = new vrpn_MyMicrosoft_Controller_Raw_Xbox_360(TRACKER_NAME, connection, 1);
+#endif // OMICRON_OS_WIN
     ///////////////////////////////////////////////////////////////////
 #endif
 

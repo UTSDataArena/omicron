@@ -279,6 +279,41 @@ if(WIN32)
 							 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn
 			)
 	endif()
+# linux support for vrpn controllers (3dConnexion space navigator and xbox 360 controllers)
+else()
+	if(OMICRON_USE_VRPN)
+
+		set( srcs	 ${srcs} omicron/VRPNService.cpp
+					 ${srcs} omicron/VRPNDeviceLinux.cpp
+			)
+# 		include_directories( ${CMAKE_SOURCE_DIR}/include/omicron/vrpn )
+# 		set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_BaseClass.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Configure.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Connection.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Shared.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Tracker.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Types.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_HumanInterface.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_3DConnexion.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Dial.h
+# 		)
+# using new VRPN_DIR
+		set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
+					 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
+					 ${VRPN_DIR}/include/vrpn_BaseClass.h
+					 ${VRPN_DIR}/include/vrpn_Configure.h
+					 ${VRPN_DIR}/include/vrpn_Connection.h
+					 ${VRPN_DIR}/include/vrpn_Shared.h
+					 ${VRPN_DIR}/include/vrpn_Tracker.h
+					 ${VRPN_DIR}/include/vrpn_Types.h
+					 ${VRPN_DIR}/include/vrpn_HumanInterface.h
+					 ${VRPN_DIR}/include/vrpn_3DConnexion.h
+					 ${VRPN_DIR}/include/vrpn_Dial.h
+					 ${VRPN_DIR}/include/vrpn_Microsoft_Controller_Raw.h
+		)
+	endif()
 endif()
 
 # ThinkGear module support
@@ -402,6 +437,14 @@ endif(OMICRON_USE_DIRECTINPUT)
 if(OMICRON_USE_VRPN)
 	if(WIN32)
 		target_link_libraries( omicron ${EXT_LIB_DIR}/vrpn.lib)
+	# linux
+	else(WIN32)
+		## the above is a precompiled library, need to create a new one for use with changed omicron
+ 		target_link_libraries( omicron
+							   usb # added for vrpn
+ 							   ${VRPN_DIR}/lib/libvrpn.a
+ 							   ${VRPN_DIR}/lib/libvrpnserver.a
+		)
 	endif(WIN32)
 endif(OMICRON_USE_VRPN)
 
