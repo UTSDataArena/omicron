@@ -134,10 +134,13 @@ private:
     // VRPN Server (for CalVR)
     const char	*TRACKER_NAME;
     int TRACKER_PORT;
+
+    const char	*JOYSTICK_PORT;
 #ifdef OMICRON_OS_WIN
     vrpn_XInputGamepad	*vrpnDevice;
 #else
-    vrpn_MyMicrosoft_Controller_Raw_Xbox_360	*vrpnDevice;
+//     vrpn_MyMicrosoft_Controller_Raw_Xbox_360	*vrpnDevice;
+    Joystick	*vrpnDevice;
 #endif // OMICRON_OS_WIN
     vrpn_Tracker_Remote	*tkr;
     vrpn_Connection		*connection;
