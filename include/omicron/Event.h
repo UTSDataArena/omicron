@@ -259,6 +259,8 @@ namespace omicron
         if(name == "Button5") return Button5;
         if(name == "Button6") return Button6;
         if(name == "Button7") return Button7;
+        if(name == "Button8") return Button8;
+        if(name == "Button9") return Button9;
         if(name == "ButtonLeft") return ButtonLeft;
         if(name == "ButtonRight") return ButtonRight;
         if(name == "ButtonUp") return ButtonUp;
@@ -266,6 +268,9 @@ namespace omicron
         if(name == "Ctrl") return Ctrl;
         if(name == "Alt") return Alt;
         if(name == "Shift") return Shift;
+        if(name == "SpecialButton1") return SpecialButton1;
+        if(name == "SpecialButton2") return SpecialButton2;
+        if(name == "SpecialButton3") return SpecialButton3;
         return (Event::Flags)0;
     }
 

@@ -63,13 +63,18 @@ void JoystickService::generateButtonEvent(vrpn_BUTTONCB b)
 	// Left Analog Pad Pressed (L3)
 	if(b.button == 5) curButtonState |= Event::Button6;
 
+	// PS Button
+	if(b.button == 8) curButtonState |= Event::SpecialButton3;
+
 	if (b.state == 1) {
 		evt->reset(Event::Down, Service::Controller, 0);
+		evt->setFlags(curButtonState);
 	} else if (b.state == 0) {
 		evt->reset(Event::Up, Service::Controller, 0);
+		prevButtonState = prevButtonState - curButtonState;
+		evt->setFlags(prevButtonState);
 	}
 
-	evt->setFlags(curButtonState);
  	prevButtonState = curButtonState;
 
 	evt->setExtraDataType(Event::ExtraDataFloatArray);
@@ -146,7 +151,7 @@ void VRPN_CALLBACK js_button_press(void *userData, const vrpn_BUTTONCB b)
 
 	JoystickService* js =  (JoystickService*) userData;
 
-// 	printf("button %i state %i\n", b.button, b.state);
+ 	printf("button %i state %i\n", b.button, b.state);
 	js->generateButtonEvent(b);
 }
 
