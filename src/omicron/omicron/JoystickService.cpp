@@ -7,27 +7,29 @@ using namespace omicron;
 ///////////////////////////////////////////////////////////////////////////////
 void JoystickService::setup(Setting& settings)
 {
-	name = "Joylin0";
     if(settings.exists("name"))
     {
-        name = (const char*)settings["name"];
+        name = Config::getStringValue("name", settings, "Joylin0");
+    }
+
+    //  joystick type is:
+    //  ps3 - ps3 button mappings
+    //  xbox - xbox 360 button mappings
+    //  ps4 - ps4 button mappings
+    if(settings.exists("joystickType"))
+    {
+        joystickType = Config::getStringValue("joystickType", settings, "ps3");
     }
 
     if(settings.exists("serverIP"))
     {
-        serverIP = (const char*)settings["serverIP"];
+        serverIP = Config::getStringValue("serverIP", settings, "127.0.0.1");
     }
 
     if(settings.exists("serverPort"))
     {
         serverPort = Config::getIntValue("serverPort",settings, 3891);
     }
-
-    if(settings.exists("joystickPort"))
-    {
-        joystickPort = (const char*)settings["joystickPort"];
-    }
-
 
 	myUpdateInterval = 0.0f;
 	if(settings.exists("updateInterval"))
@@ -41,10 +43,8 @@ void JoystickService::setup(Setting& settings)
 ///////////////////////////////////////////////////////////////////////////////
 JoystickService* JoystickService::mysInstance = NULL;
 
-/*
-// Previous button mappings (for ps3->Xbox controller)
 ///////////////////////////////////////////////////////////////////////////////
-void JoystickService::generateButtonEvent(vrpn_BUTTONCB b)
+void JoystickService::generateButtonEvent_xbox(vrpn_BUTTONCB b)
 {
 	mysInstance->lockEvents();
 	Event* evt = mysInstance->writeHead();
@@ -90,7 +90,6 @@ void JoystickService::generateButtonEvent(vrpn_BUTTONCB b)
 	mysInstance->unlockEvents();
 
 }
-*/
 
 /* Button Mappings for Ps3 Controllers
  * Button#	PSbutton	Event
@@ -113,10 +112,9 @@ void JoystickService::generateButtonEvent(vrpn_BUTTONCB b)
  * 16		PS			SpecialButton3
  *
 */
-
-// New button mappings (directly from a ps3 controller/ wand controller)
+// Button mappings (directly from a ps3 controller/ wand controller)
 ///////////////////////////////////////////////////////////////////////////////
-void JoystickService::generateButtonEvent(vrpn_BUTTONCB b)
+void JoystickService::generateButtonEvent_ps3(vrpn_BUTTONCB b)
 {
 	mysInstance->lockEvents();
 	Event* evt = mysInstance->writeHead();
@@ -165,10 +163,74 @@ void JoystickService::generateButtonEvent(vrpn_BUTTONCB b)
 
 }
 
-/*
-// Previous axes mapping (PS3 Controller -> Xbox controller)
+/* Button Mappings for Ps4 Controllers
+ * Button#	PSbutton	Event
+ * 0		Square		Button3
+ * 1		Cross		Button1
+ * 2		Circle		Button2
+ * 3		Triangle	Button4
+ * 4		L1			Button5
+ * 5		R1			Button6
+ * 6		L2			Button7
+ * 7		R2			Button8
+ * 8		SHARE		SpecialButton2
+ * 9		OPTIONS		SpecialButton1
+ * 10		L3			Button9
+ * 11		R3			Button10
+ * 12		PS			SpecialButton3
+ * 13		Pad			Button1
+ *
+*/
+// Button mappings (directly from a ps4 controller)
 ///////////////////////////////////////////////////////////////////////////////
-void JoystickService::generateUpdateEvent(vrpn_ANALOGCB a)
+void JoystickService::generateButtonEvent_ps4(vrpn_BUTTONCB b)
+{
+	mysInstance->lockEvents();
+	Event* evt = mysInstance->writeHead();
+
+	uint curButtonState = 0;
+
+	if(b.button == 0) curButtonState |= Event::Button3;
+	if(b.button == 1) curButtonState |= Event::Button1;
+ 	if(b.button == 2) curButtonState |= Event::Button2;
+	if(b.button == 3) curButtonState |= Event::Button4;
+	if(b.button == 4) curButtonState |= Event::Button5;
+	if(b.button == 5) curButtonState |= Event::Button6;
+	if(b.button == 6) curButtonState |= Event::Button7;
+	if(b.button == 7) curButtonState |= Event::Button8;
+	if(b.button == 8) curButtonState |= Event::SpecialButton2;
+	if(b.button == 9) curButtonState |= Event::SpecialButton1;
+	if(b.button == 10) curButtonState |= Event::Button9;
+	//if(b.button == 11) curButtonState |= Event::Button10;
+	if(b.button == 12) curButtonState |= Event::SpecialButton3;
+	if(b.button == 13) curButtonState |= Event::Button1;
+
+	if (b.state == 1) {
+		evt->reset(Event::Down, Service::Controller, 0);
+		evt->setFlags(curButtonState);
+	} else if (b.state == 0) {
+		evt->reset(Event::Up, Service::Controller, 0);
+		prevButtonState = prevButtonState - curButtonState;
+		evt->setFlags(prevButtonState);
+	}
+
+ 	prevButtonState = curButtonState;
+
+	evt->setExtraDataType(Event::ExtraDataFloatArray);
+
+	evt->setExtraDataFloat(0, 0);  // Left analog (-left, +right)
+	evt->setExtraDataFloat(1, 0);  // Left analog (-up, +down)
+ 	evt->setExtraDataFloat(2, 0); // Right analog (-left, +right)
+ 	evt->setExtraDataFloat(3, 0); // Right analog (-up, +down)
+ 	evt->setExtraDataFloat(4, 0); // Trigger 2 (-unpressed, +pressed)
+ 	evt->setExtraDataFloat(5, 0); // Trigger 1 (-unpressed, +pressed)
+
+	mysInstance->unlockEvents();
+
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void JoystickService::generateUpdateEvent_xbox(vrpn_ANALOGCB a)
 {
 	mysInstance->lockEvents();
 	Event* evt = mysInstance->writeHead();
@@ -214,7 +276,6 @@ void JoystickService::generateUpdateEvent(vrpn_ANALOGCB a)
 	mysInstance->unlockEvents();
 
 }
-*/
 
 /* Axis Mapping for Ps3 Controllers
  * Axis#	PSAxis
@@ -242,43 +303,125 @@ void JoystickService::generateUpdateEvent(vrpn_ANALOGCB a)
  *
 */
 
-// New axes mapping (Ps3/Move Controller)
+// Axes mapping (Ps3/Move Controller)
 ///////////////////////////////////////////////////////////////////////////////
-void JoystickService::generateUpdateEvent(vrpn_ANALOGCB a)
+void JoystickService::generateUpdateEvent_ps3(vrpn_ANALOGCB a)
 {
-	mysInstance->lockEvents();
-	Event* evt = mysInstance->writeHead();
+	bool analogChange = false;
+
+
+	// only test for certain axes
+	for (int i = 0; i < 4; ++i) {
+		analogChange |= a.channel[i] != channel[i];
+	}
+	for (int i = 12; i < 14; ++i) {
+		analogChange |= a.channel[i] != channel[i];
+	}
+
+	for (int i = 0; i < a.num_channel; ++i) {
+		channel[i] = a.channel[i];
+	}
 
 	uint curButtonState = 0;
 
-	if (curButtonState != prevButtonState) {
-		if (curButtonState > prevButtonState) {
-			evt->reset(Event::Down, Service::Controller, 0);
-			evt->setFlags(curButtonState);
+	if (analogChange) {
+		mysInstance->lockEvents();
+		Event* evt = mysInstance->writeHead();
 
-		} else {
-			evt->reset(Event::Up, Service::Controller, 0);
-			prevButtonState = prevButtonState - curButtonState;
-			evt->setFlags(prevButtonState);
-
-		}
-	} else {
 		evt->reset(Event::Update, Service::Controller, 0);
-			evt->setFlags(curButtonState);
+		evt->setFlags(curButtonState);
+
+		evt->setExtraDataType(Event::ExtraDataFloatArray);
+
+		evt->setExtraDataFloat(0, a.channel[0]);  // Left analog (-left, +right)
+		evt->setExtraDataFloat(1, a.channel[1]);  // Left analog (-up, +down)
+		evt->setExtraDataFloat(2, a.channel[2]); // Right analog (-left, +right)
+		evt->setExtraDataFloat(3, a.channel[3]); // Right analog (-up, +down)
+		evt->setExtraDataFloat(4, 0.5 * (a.channel[12] + 1)); // R2 (0, +pressed)
+		evt->setExtraDataFloat(5, 0.5 * (a.channel[13] + 1)); // L2 (0, +pressed)
+
+		mysInstance->unlockEvents();
 	}
 
-	prevButtonState = curButtonState;
+}
 
-	evt->setExtraDataType(Event::ExtraDataFloatArray);
+/* Axis Mapping for Ps4 Controllers
+ * Axis#	PSAxis
+ * 0		L stick (-L,  +R)
+ * 1		L stick (-U,  +D)
+ * 2		R stick (-L,  +R)
+ * 3		L2 Button (-1 +1, not pressed)
+ * 4		R2 Button press (-1 +1, not pressed)
+ * 5		R stick (-U,  +D)
+ * 6		Dpad (-L +R)
+ * 7		Dpad (-U +D)
+*/
 
-	evt->setExtraDataFloat(0, a.channel[0]);  // Left analog (-left, +right)
-	evt->setExtraDataFloat(1, a.channel[1]);  // Left analog (-up, +down)
- 	evt->setExtraDataFloat(2, a.channel[2]); // Right analog (-left, +right)
- 	evt->setExtraDataFloat(3, a.channel[3]); // Right analog (-up, +down)
- 	evt->setExtraDataFloat(4, 0.5 * (a.channel[12] + 1)); // R2 (0, +pressed)
- 	evt->setExtraDataFloat(5, 0.5 * (a.channel[13] + 1)); // L2 (0, +pressed)
+// Axes mapping (Ps4 Controller)
+// this implementation ignores accelerometer axis changing (8-13)
+///////////////////////////////////////////////////////////////////////////////
+void JoystickService::generateUpdateEvent_ps4(vrpn_ANALOGCB a)
+{
 
-	mysInstance->unlockEvents();
+	uint curButtonState = 0;
+
+	// d-pad (-left, +right)
+	if (a.channel[6] < 0) curButtonState |= Event::ButtonLeft;
+	if (a.channel[6] > 0)  curButtonState |= Event::ButtonRight;
+	// d-pad (-up, +down)
+	if (a.channel[7] < 0) curButtonState |= Event::ButtonUp;
+	if (a.channel[7] > 0)  curButtonState |= Event::ButtonDown;
+
+	bool buttonChange = false;
+	bool analogChange = false;
+
+	if (curButtonState != prevButtonState) {
+		buttonChange = true;
+	} else {
+		for (int i = 0; i < 6; ++i) {
+			analogChange |= a.channel[i] != channel[i];
+		}
+
+ 		for (int i = 0; i < a.num_channel; ++i) {
+			channel[i] = a.channel[i];
+		}
+	}
+
+	if (buttonChange || analogChange) {
+		mysInstance->lockEvents();
+		Event* evt = mysInstance->writeHead();
+
+		if (buttonChange) {
+			if (curButtonState > prevButtonState) {
+				evt->reset(Event::Down, Service::Controller, 0);
+				evt->setFlags(curButtonState);
+				omsg("button down");
+			} else {
+				evt->reset(Event::Up, Service::Controller, 0);
+				prevButtonState = prevButtonState - curButtonState;
+				evt->setFlags(prevButtonState);
+				omsg("button up");
+			}
+		}
+
+		if (analogChange) {
+			evt->reset(Event::Update, Service::Controller, 0);
+			evt->setFlags(curButtonState);
+		}
+
+		prevButtonState = curButtonState;
+
+		evt->setExtraDataType(Event::ExtraDataFloatArray);
+
+		evt->setExtraDataFloat(0, a.channel[0]);  // Left analog (-left, +right)
+		evt->setExtraDataFloat(1, a.channel[1]);  // Left analog (-up, +down)
+		evt->setExtraDataFloat(2, a.channel[2]); // Right analog (-left, +right)
+		evt->setExtraDataFloat(3, a.channel[5]); // Right analog (-up, +down)
+		evt->setExtraDataFloat(4, 0.5 * (a.channel[3] + 1)); // R2 (0, +pressed)
+		evt->setExtraDataFloat(5, 0.5 * (a.channel[4] + 1)); // L2 (0, +pressed)
+
+		mysInstance->unlockEvents();
+	}
 
 }
 
@@ -296,7 +439,16 @@ void VRPN_CALLBACK js_button_press(void *userData, const vrpn_BUTTONCB b)
 	JoystickService* js =  (JoystickService*) userData;
 
  	printf("button %i state %i\n", b.button, b.state);
-	js->generateButtonEvent(b);
+
+	if (js->joystickType == "xbox") {
+		js->generateButtonEvent_xbox(b);
+	} else if (js->joystickType == "ps3") {
+		js->generateButtonEvent_ps3(b);
+	} else if (js->joystickType == "ps4") {
+		js->generateButtonEvent_ps4(b);
+	} else { // default to ps3
+		js->generateButtonEvent_ps3(b);
+	}
 }
 
 void VRPN_CALLBACK js_channel_change(void *userData, const vrpn_ANALOGCB a)
@@ -310,7 +462,16 @@ void VRPN_CALLBACK js_channel_change(void *userData, const vrpn_ANALOGCB a)
 //         fprintf(stderr, ", %5.2f", a.channel[i]);
 //     }
 //     fprintf(stderr, " (%d chans)\n", a.num_channel);
-	js->generateUpdateEvent(a);
+
+	if (js->joystickType == "xbox") {
+		js->generateUpdateEvent_xbox(a);
+	} else if (js->joystickType == "ps3") {
+		js->generateUpdateEvent_ps3(a);
+	} else if (js->joystickType == "ps4") {
+		js->generateUpdateEvent_ps4(a);
+	} else { // default to ps3
+		js->generateUpdateEvent_ps3(a);
+	}
 }
 
 
@@ -326,11 +487,10 @@ void JoystickService::initialize()
 
 	sprintf(server, "%d", serverPort);
 
-	sprintf(command, "%s@%s:%d", name, serverIP, serverPort);
+	sprintf(command, "%s@%s:%d", name.c_str(), serverIP.c_str(), serverPort);
 
-	ofmsg("connecting to %1%..", %command);
+	ofmsg("connecting to %1% controller at %2%..", %joystickType.c_str() %command);
 
-// 	vrpnJoystick = new Joystick(command, connection, strdup(joystickPort));
 	buttons = new vrpn_Button_Remote(command);
 	channels = new vrpn_Analog_Remote(command);
 

@@ -23,7 +23,6 @@ public:
     // Allocator function
     static JoystickService* New() { return new JoystickService(); }
 
-public:
     void setup(Setting& settings);
     virtual void initialize();
     virtual void poll();
@@ -34,9 +33,17 @@ public:
     void setUpdateInterval(float value);
     //! @see setUpdateInterval
     float getUpdateInterval();
-	
-	void generateButtonEvent(vrpn_BUTTONCB b);
-	void generateUpdateEvent(vrpn_ANALOGCB a);
+
+	void generateButtonEvent_ps3(vrpn_BUTTONCB b);
+	void generateUpdateEvent_ps3(vrpn_ANALOGCB a);
+	void generateButtonEvent_ps4(vrpn_BUTTONCB b);
+	void generateUpdateEvent_ps4(vrpn_ANALOGCB a);
+	void generateButtonEvent_xbox(vrpn_BUTTONCB b);
+	void generateUpdateEvent_xbox(vrpn_ANALOGCB a);
+
+	String joystickType;
+
+	double channel[vrpn_CHANNEL_MAX];
 
 private:
     static JoystickService* mysInstance;
@@ -49,9 +56,8 @@ private:
 	vrpn_Button_Remote *buttons;
 	vrpn_Analog_Remote *channels;
 	float myUpdateInterval;
-	const char* serverIP;
-	const char* joystickPort;
-	const char* name;
+	String serverIP;
+	String name;
 	int serverPort;
 
 	uint prevButtonState;

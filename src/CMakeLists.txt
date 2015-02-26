@@ -43,7 +43,7 @@ add_subdirectory(omicron)
 set(OMICRON_USE_VRPN true CACHE BOOL "Enable/disable VRPN Client support")
 
 if(OMICRON_USE_VRPN)
-	set(VRPN_DIR "" CACHE PATH "Set path to vrpn include files")
+	set(VRPN_DIR "/da/sw/vrpn/install" CACHE PATH "Set path to vrpn include files")
 	message(STATUS "vrpn dir is: ${VRPN_DIR}")
 	include_directories( ${VRPN_DIR}/include )
 endif()
