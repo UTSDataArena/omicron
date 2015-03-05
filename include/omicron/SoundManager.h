@@ -235,6 +235,8 @@ private:
 
 	// Sound server control
 	static int soundServerVolume;
+	static int soundServerVolumeMin;
+	static int soundServerVolumeMax;
 	static int soundLoadWaitTime;
 };// SoundManager
 
