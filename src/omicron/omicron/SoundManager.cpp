@@ -50,6 +50,9 @@ double SoundManager::actualSampleRate = -1;
 int SoundManager::soundServerVolume = -16;
 int SoundManager::soundLoadWaitTime = 200;
 
+int SoundManager::soundServerVolumeMin = -90;
+int SoundManager::soundServerVolumeMax = 8;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 SoundManager::SoundManager():
 	myAssetCacheEnabled(false)
@@ -613,10 +616,10 @@ void SoundManager::cleanupAllSounds()
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SoundManager::setServerVolume(int value)
 {
-	if( value > 8 )
-		soundServerVolume = 8;
-	else if( value < -30 )
-		soundServerVolume = -30;
+	if( value > soundServerVolumeMax )
+		soundServerVolume = soundServerVolumeMax;
+	else if( value < soundServerVolumeMin )
+		soundServerVolume = soundServerVolumeMin;
 	else
 		soundServerVolume = value;
 
