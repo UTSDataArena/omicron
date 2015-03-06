@@ -27,7 +27,7 @@
  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE  GOODS OR 
  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
- * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *-----------------------------------------------------------------------------
  * What's in this file:
@@ -545,11 +545,29 @@ void InputServer::startConnection(Config* cfg)
     TRACKER_NAME = strdup(Config::getStringValue("vrpnTrackerName", sCfg, "Device0").c_str());
     TRACKER_PORT = Config::getFloatValue("vrpnTrackerPort", sCfg, 3891);
 
+    JOYSTICK_PORT = strdup(Config::getStringValue("vrpnControllerPort", sCfg, "/dev/input/js0").c_str());
+
     // explicitly open the connection
     ofmsg("OInputServer: Created VRPNDevice %1%", %TRACKER_NAME);
     ofmsg("              Port: %1%", %TRACKER_PORT);
+    ofmsg("              Controller Port: %1%", %JOYSTICK_PORT);
     connection = vrpn_create_server_connection(TRACKER_PORT);
+// 	char server[128];
+// 	sprintf(server, "%d", TRACKER_NAME);
+
+// 	ofmsg("will connect to %1%", %server);
+
+// 	connection = vrpn_get_connection_by_name(server);
+// 	connection = vrpn_get_connection_by_name("localhost");
+	omsg("connected to server!");
+
+
+#ifdef OMICRON_OS_WIN
     vrpnDevice = new vrpn_XInputGamepad(TRACKER_NAME, connection, 1);
+#else
+//     vrpnDevice = new vrpn_MyMicrosoft_Controller_Raw_Xbox_360(TRACKER_NAME, connection, 1);
+    vrpnDevice = new Joystick(strdup(TRACKER_NAME), connection, strdup(JOYSTICK_PORT));
+#endif // OMICRON_OS_WIN
     ///////////////////////////////////////////////////////////////////
 #endif
 
@@ -767,6 +785,11 @@ void InputServer::loop()
 #ifdef OMICRON_USE_VRPN
     // VRPN connection
     connection->mainloop();
+#ifndef OMICRON_OS_WIN
+	if (vrpnDevice != NULL) {
+		vrpnDevice->mainloop();
+	}
+#endif // OMICRON_OS_WIN
 #endif
 }
 

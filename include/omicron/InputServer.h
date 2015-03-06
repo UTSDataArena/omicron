@@ -48,6 +48,10 @@
     #include "omicron/VRPNDevice.h"
 #endif
 #else
+#ifdef OMICRON_USE_VRPN
+    #include "omicron/VRPNDeviceLinux.h" // raw input microsoft controller
+    #include "/da/sw/vrpn/install/include/vrpn_Tracker.h" // need to add include path
+#endif
     #include <stdlib.h>
     #include <string.h>
     #include <netdb.h>
@@ -130,7 +134,14 @@ private:
     // VRPN Server (for CalVR)
     const char	*TRACKER_NAME;
     int TRACKER_PORT;
+
+    const char	*JOYSTICK_PORT;
+#ifdef OMICRON_OS_WIN
     vrpn_XInputGamepad	*vrpnDevice;
+#else
+//     vrpn_MyMicrosoft_Controller_Raw_Xbox_360	*vrpnDevice;
+    Joystick	*vrpnDevice;
+#endif // OMICRON_OS_WIN
     vrpn_Tracker_Remote	*tkr;
     vrpn_Connection		*connection;
 #endif
