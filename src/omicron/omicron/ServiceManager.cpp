@@ -230,10 +230,10 @@ ServiceAllocator ServiceManager::findServiceAllocator(const String& svcName)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 void ServiceManager::initialize()
 {
-	omsg("ServiceManager::initialize");
+	olog(Verbose, "ServiceManager::initialize");
 
 	myEventBuffer = new Event[MaxEvents];
-	ofmsg("Event buffer allocated. Max events: %1%", %MaxEvents);
+	oflog(Verbose, "Event buffer allocated. Max events: %1%", %MaxEvents);
 
 	foreach(Service* it, myServices)
 	{
@@ -313,7 +313,7 @@ Service* ServiceManager::addService(const String& svcClass)
 			Service* svc = svcAllocator();
 			myServices.push_back(svc);
 
-			ofmsg("Service added: %1%", %svcClass);
+			oflog(Verbose, "Service added: %1%", %svcClass);
 
 			return svc;
 		}
