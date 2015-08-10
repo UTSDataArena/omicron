@@ -99,6 +99,13 @@ public:
 	float getRoomSize();
 	void setWetness(float);
 	float getWetness();
+
+	// Tempo clock methods, for timing things
+	// [Darren 29Sep14]
+	void startTempoClock(float tempo);
+	void stopTempoClock();
+	
+	
 private:
 	SoundManager* soundManager;
 	float environmentVolumeScale;
@@ -234,6 +241,8 @@ private:
 
 	// Sound server control
 	static int soundServerVolume;
+	static int soundServerVolumeMin;
+	static int soundServerVolumeMax;
 	static int soundLoadWaitTime;
 };// SoundManager
 

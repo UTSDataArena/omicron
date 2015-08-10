@@ -98,8 +98,8 @@ int main(int argc, char** argv)
 {
 	ConnectorListener listener;
 	OmicronConnectorClient client(&listener);
-	client.connect("137.110.119.244", 27000);
-	//client.connect("127.0.0.1", 27000);
+// // 	client.connect("137.110.119.244", 27000);
+	client.connect("127.0.0.1", 27000);
 	while(true)
 	{
 		client.poll(); 

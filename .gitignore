@@ -1,3 +1,4 @@
+ignore/*
 /processing/OmicronAPI/bin/omicronAPI/*.class
 
 /processing/OmicronAPI/bin/hypermedia/net/*.class

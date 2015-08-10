@@ -281,6 +281,45 @@ if(WIN32)
 							 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn
 			)
 	endif()
+# linux support for vrpn controllers (3dConnexion space navigator and xbox 360 controllers)
+else()
+	if(OMICRON_USE_VRPN)
+
+		set( srcs	 ${srcs} omicron/VRPNService.cpp
+					 ${srcs} omicron/VRPNDeviceLinux.cpp
+					 ${srcs} omicron/JoystickService.cpp
+					 ${srcs} omicron/SpaceNavigatorService.cpp
+			)
+# 		include_directories( ${CMAKE_SOURCE_DIR}/include/omicron/vrpn )
+# 		set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_BaseClass.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Configure.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Connection.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Shared.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Tracker.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Types.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_HumanInterface.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_3DConnexion.h
+# 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Dial.h
+# 		)
+# using new VRPN_DIR
+		set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
+					 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
+					 ${VRPN_DIR}/include/vrpn_BaseClass.h
+					 ${VRPN_DIR}/include/vrpn_Configure.h
+					 ${VRPN_DIR}/include/vrpn_Connection.h
+					 ${VRPN_DIR}/include/vrpn_Shared.h
+					 ${VRPN_DIR}/include/vrpn_Tracker.h
+					 ${VRPN_DIR}/include/vrpn_Types.h
+					 ${VRPN_DIR}/include/vrpn_HumanInterface.h
+					 ${VRPN_DIR}/include/vrpn_3DConnexion.h
+					 ${VRPN_DIR}/include/vrpn_Dial.h
+					 ${VRPN_DIR}/include/vrpn_Microsoft_Controller_Raw.h
+					 ${CMAKE_SOURCE_DIR}/include/omicron/JoystickService.h
+					 ${CMAKE_SOURCE_DIR}/include/omicron/SpaceNavigatorService.h
+		)
+	endif()
 endif()
 
 # ThinkGear module support
@@ -407,6 +446,24 @@ endif(OMICRON_USE_DIRECTINPUT)
 if(OMICRON_USE_VRPN)
 	if(WIN32)
 		target_link_libraries( omicron ${EXT_LIB_DIR}/vrpn.lib)
+	# linux
+	else(WIN32)
+		add_library( vrpn SHARED IMPORTED)
+		set_target_properties( vrpn PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpn.a )
+		add_library( vrpnserver SHARED IMPORTED )
+		set_target_properties( vrpnserver PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpnserver.a )
+# 		## checking LINK_DIRECTORIES
+# 		get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY LINK_DIRECTORIES)
+# 		foreach(dir ${dirs})
+# 		message(STATUS "link dir='${dir}'")
+# 		endforeach()
+ 		target_link_libraries( omicron
+							   usb # added for vrpn
+ 							   vrpn
+ 							   vrpnserver
+#  							   ${VRPN_DIR}/lib/libvrpn.a
+#  							   ${VRPN_DIR}/lib/libvrpnserver.a
+		)
 	endif(WIN32)
 endif(OMICRON_USE_VRPN)
 

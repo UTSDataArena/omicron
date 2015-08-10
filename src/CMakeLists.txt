@@ -20,6 +20,7 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include/
   ${CMAKE_SOURCE_DIR}/include/
   ${CMAKE_SOURCE_DIR}/external/include
+#   /da/sw/vrpn/install/include # VRPN INCLUDE DIR
   )
 
 # Add connector examples before including pch support, so connector examples won't depend on omicron precompiled headers.
@@ -38,11 +39,27 @@ endif(WIN32)
 # Add the core omega project
 add_subdirectory(omicron)
 
+## VRPN
+set(OMICRON_USE_VRPN true CACHE BOOL "Enable/disable VRPN Client support")
+
+if(OMICRON_USE_VRPN)
+	set(VRPN_DIR "/da/sw/vrpn/install" CACHE PATH "Set path to vrpn include files")
+	message(STATUS "vrpn dir is: ${VRPN_DIR}")
+	include_directories( ${VRPN_DIR}/include )
+endif()
+
 # oinputserver currently works only on Windows (uses WINSOCK)
 if(WIN32)
 	add_subdirectory(apps/sageinputserver)
 	add_subdirectory(apps/legacy-oinputserver)
 endif(WIN32)
+
+## checking INCLUDE_DIRECTORIES
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+  message(STATUS "dir='${dir}'")
+endforeach()
+
 add_subdirectory(apps/oinputserver)
 add_subdirectory(apps/eventlogger)
 add_subdirectory(apps/ocachesync)

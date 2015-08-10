@@ -85,6 +85,8 @@
 #endif
 #ifdef OMICRON_USE_VRPN
 	#include "omicron/VRPNService.h"
+	#include "omicron/JoystickService.h"
+	#include "omicron/SpaceNavigatorService.h"
 #endif
 #ifdef OMICRON_USE_THINKGEAR
 	#include "omicron/ThinkGearService.h"
@@ -150,6 +152,8 @@ void ServiceManager::registerDefaultServices()
 #endif
 #ifdef OMICRON_USE_VRPN
 	registerService("VRPNService", (ServiceAllocator)VRPNService::New);
+	registerService("JoystickService", (ServiceAllocator)JoystickService::New);
+	registerService("SpaceNavigatorService", (ServiceAllocator)SpaceNavigatorService::New);
 #endif
 #ifdef OMICRON_USE_THINKGEAR
 	registerService("ThinkGearService", (ServiceAllocator)ThinkGearService::New);

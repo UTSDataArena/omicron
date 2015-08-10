@@ -55,7 +55,7 @@ void VRPN_CALLBACK handle_tracker(void *userData, const vrpn_TRACKERCB t)
     VRPNStruct* vs = ((VRPNStruct*)userData);
     VRPNService* vrpnService = vs->vrnpService;
 
-    vrpnService->generateTrackerEvent(t, vs->object_id, vs->userId, vs->jointId);
+    vrpnService->generateTrackerEvent(t, vs->object_id, vs->userId, vs->jointId, vs->generate2dCoordinates);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -86,6 +86,27 @@ void VRPNService::setup(Setting& settings)
     {
         server_ip =  (const char*)settings["serverIP"];
     }
+
+    if(settings.exists("width"))
+	{
+		width = Config::getIntValue("width", settings, 1920);
+	}
+
+    if(settings.exists("height"))
+	{
+		height = Config::getIntValue("height", settings, 1080);
+	}
+
+    if(settings.exists("xOffset"))
+	{
+		xOffset = Config::getIntValue("xOffset", settings, 0);
+	}
+
+    if(settings.exists("yOffset"))
+	{
+		yOffset = Config::getIntValue("yOffset", settings, 0);
+	}
+
 
     if(settings.exists("objects"))
     {
@@ -129,6 +150,11 @@ void VRPNService::setup(Setting& settings)
 			else
 			{
 				trackerInfo.object_type = "None";
+			}
+
+			if(str.exists("generate2dCoordinates"))
+			{
+				trackerInfo.generate2dCoordinates = Config::getBoolValue("generate2dCoordinates", str, "false");
 			}
 
             trackerInfo.trackableId = str["objectID"];
@@ -176,6 +202,8 @@ void VRPNService::initialize()
         vrpnData->jointId = t.jointId;
         vrpnData->vrnpService = this;
 
+		vrpnData->generate2dCoordinates = t.generate2dCoordinates;
+
         // Set up the callback handler
         tkr->register_change_handler((void*)vrpnData, handle_tracker);
 		vrpnButton->register_change_handler((void*)vrpnData, handle_button);
@@ -211,7 +239,9 @@ void VRPNService::dispose()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void VRPNService::generateTrackerEvent(vrpn_TRACKERCB t, int id, unsigned short userId, int jointId) 
+void VRPNService::generateTrackerEvent(vrpn_TRACKERCB t, int id, unsigned short userId, int jointId,
+	bool generate2dCoordinates
+)
 {
      //static float lastt;
      //float curt = (float)((double)clock() / CLOCKS_PER_SEC);
@@ -231,6 +261,30 @@ void VRPNService::generateTrackerEvent(vrpn_TRACKERCB t, int id, unsigned short 
 			 evt->setExtraDataType(Event::ExtraDataIntArray);
              evt->setExtraDataInt(0, jointId);
          }
+
+         // do some coordinate generation based on a cylindrical screen
+         if (generate2dCoordinates)
+		 {
+			 int index = 1;
+			 if (jointId == -1) {
+				index = 0;
+				evt->setExtraDataType(Event::ExtraDataIntArray);
+			 }
+
+			 float angle = atan2(t.pos[0], t.pos[2]);
+			 float x = width * 0.5 * (1.0 - (angle / 3.14159265));
+
+			 if (t.pos[1] > 1.5) {
+				 t.pos[1] = 1.5;
+			 }
+			 if (t.pos[1]  > 1.0) {
+				 float y = height * -(2.0 * (t.pos[1] - 1.5));
+
+				evt->setExtraDataInt(index, round(x - xOffset));
+				evt->setExtraDataInt(index+ 1, round(y - yOffset));
+			 }
+
+		 }
 
          mysInstance->unlockEvents();
          //lastt = curt;
