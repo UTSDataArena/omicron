@@ -73,15 +73,15 @@ using namespace omicron;
 #include <stdio.h>                      // for NULL, fprintf, perror, etc
 #include <stdlib.h>                     // for exit
 #include <sys/select.h>                 // for select, FD_ISSET, FD_SET, etc
-#include "/da/sw/vrpn/install/include/vrpn_Shared.h"                // for timeval, vrpn_gettimeofday
-#include "/da/sw/vrpn/install/include/vrpn_Types.h"                 // for vrpn_float64
+#include "vrpn_Shared.h"                // for timeval, vrpn_gettimeofday
+#include "vrpn_Types.h"                 // for vrpn_float64
 
 #include <sys/ioctl.h>                  // for ioctl
 #include <unistd.h>                     // for read
 // #include <string.h>                     // for strncpy
 
-#include "/da/sw/vrpn/install/include/vrpn_BaseClass.h"             // for ::vrpn_TEXT_ERROR
-#include "/da/sw/vrpn/install/include/vrpn_Connection.h"            // for vrpn_Connection
+#include "vrpn_BaseClass.h"             // for ::vrpn_TEXT_ERROR
+#include "vrpn_Connection.h"            // for vrpn_Connection
 #include <linux/joystick.h>             // for js_event, JSIOCGAXES, etc
 //
 // vrpn_Joylin::vrpn_Joylin(char * name,

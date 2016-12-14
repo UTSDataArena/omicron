@@ -59,7 +59,7 @@
 #else
 #ifdef OMICRON_USE_VRPN
     #include "omicron/VRPNDeviceLinux.h" // raw input microsoft controller
-    #include "/da/sw/vrpn/install/include/vrpn_Tracker.h" // need to add include path
+    #include "vrpn_Tracker.h"
 #endif
     #include <stdlib.h>
     #include <string.h>

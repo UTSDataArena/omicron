@@ -6,9 +6,9 @@
 #include "omicron/ServiceManager.h"
 
 // for vrpn_HidAcceptor (ptr only), etc
-// #include "/da/sw/vrpn/install/include/vrpn_Microsoft_Controller_Raw.h"
+// #include "vrpn_Microsoft_Controller_Raw.h"
 // linux-based joystick
-#include "/da/sw/vrpn/install/include/vrpn_Joylin.h"
+#include "vrpn_Joylin.h"
 
 namespace omicron {
 /*
