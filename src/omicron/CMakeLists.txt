@@ -290,7 +290,6 @@ else()
 					 ${srcs} omicron/JoystickService.cpp
 					 ${srcs} omicron/SpaceNavigatorService.cpp
 			)
-# 		include_directories( ${CMAKE_SOURCE_DIR}/include/omicron/vrpn )
 # 		set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
 # 					 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
 # 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_BaseClass.h
@@ -304,6 +303,7 @@ else()
 # 					 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Dial.h
 # 		)
 # using new VRPN_DIR
+		include_directories( ${VRPN_DIR}/include )
 		set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
 					 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
 					 ${VRPN_DIR}/include/vrpn_BaseClass.h

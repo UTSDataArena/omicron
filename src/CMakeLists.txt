@@ -20,7 +20,6 @@ include_directories(
   ${CMAKE_BINARY_DIR}/include/
   ${CMAKE_SOURCE_DIR}/include/
   ${CMAKE_SOURCE_DIR}/external/include
-#   /da/sw/vrpn/install/include # VRPN INCLUDE DIR
   )
 
 # Add connector examples before including pch support, so connector examples won't depend on omicron precompiled headers.
@@ -43,7 +42,7 @@ add_subdirectory(omicron)
 set(OMICRON_USE_VRPN true CACHE BOOL "Enable/disable VRPN Client support")
 
 if(OMICRON_USE_VRPN)
-	set(VRPN_DIR "/da/sw/vrpn/install" CACHE PATH "Set path to vrpn include files")
+	set(VRPN_DIR "/local/vrpn/install" CACHE PATH "Set path to vrpn include files")
 	message(STATUS "vrpn dir is: ${VRPN_DIR}")
 	include_directories( ${VRPN_DIR}/include )
 endif()

@@ -6,13 +6,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-// #include "/da/sw/vrpn/install/include/vrpn_Tracker.h" // Remember to set Linker directories and Input/Dependencies to vrpn.lib
-// #include "/da/sw/vrpn/install/include/vrpn_Joylin.h" // Remember to set Linker directories and Input/Dependencies to vrpn.lib
-// #include "omicron/VRPNDeviceLinux.h"
-// TODO: need to add include path for this
-#include "/da/sw/vrpn/install/include/vrpn_Analog.h"
-#include "/da/sw/vrpn/install/include/vrpn_Button.h"
-#include "/da/sw/vrpn/install/include/vrpn_Analog_Output.h"
+#include "vrpn_Analog.h"
+#include "vrpn_Button.h"
+#include "vrpn_Analog_Output.h"
 
 namespace omicron
 {
