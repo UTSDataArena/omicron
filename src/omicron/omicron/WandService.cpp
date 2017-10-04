@@ -75,7 +75,7 @@ void WandService::setup(Setting& settings)
     {
         Setting& sptr = settings["pointer"];
         myPointerXAxisId = Config::getIntValue("xAxisId", sptr, myPointerXAxisId);
-        myPointerYAxisId = Config::getIntValue("xAxisId", sptr, myPointerYAxisId);
+        myPointerYAxisId = Config::getIntValue("yAxisId", sptr, myPointerYAxisId);
         myRayPointMapper = RayPointMapper::create(sptr);
     }
 }
