@@ -124,16 +124,24 @@ void WandService::poll()
                 if( evt->isButtonDown(EventBase::Button2) )
                     ofmsg("myRaySourceId %1% serviceName %2% myControllerSourceId %3%", %myRaySourceId %getName() %myControllerSourceId);
             }
+
             // Re-map the controller event as Wand event with the MocapId
             evt->reset( myType, Service::Wand, myRaySourceId, getServiceId(), myWandUserId );
             evt->setPosition(myWandPosition);
             evt->setOrientation(myWandOrientation);
             evt->setFlags(myFlags);
             evt->setExtraData( myExtraDataType, myExtraDataItems, myExtraDataValidMask, myExtraData );
+            // CONTINUE FROM HERE:
+            // Assertion failed at /da/dev/darren/omegalib/omicron/include/omicron/Event.h:509 - myExtraDataType == ExtraDataFloatArray
+            // happens when below is removed?
+            // figure out why this fails and what i need to change in vrpn to get it working
+            // evt->setExtraData( myExtraDataType, myExtraDataItems, myExtraDataValidMask, myExtraData );
             
             // If we have a ray to point mapper, save 2D point data in the event.
             if(myRayPointMapper != NULL)
             {
+                // put this in to try fix Assertion Failed problem?
+                // evt->setExtraDataType(Event::ExtraDataFloatArray);
                 Ray r(myWandPosition, myWandOrientation * -Vector3f::UnitZ());
                 Vector2f pt = myRayPointMapper->getPointFromRay(r);
                 evt->setExtraDataFloat(myPointerXAxisId, pt[0]);
