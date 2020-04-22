@@ -75,6 +75,7 @@ if(OMICRON_BINARY_DIR)
 	# On linux, asio depends on pthreads so add it as a dependency.
 	if(UNIX)
 		set(OMICRON_LIB ${OMICRON_LIB} pthread)
+        set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} -std=c++11)
 	endif(UNIX)
 	
 	###################################################################################################

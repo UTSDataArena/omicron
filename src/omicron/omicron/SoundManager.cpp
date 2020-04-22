@@ -50,6 +50,9 @@ double SoundManager::actualSampleRate = -1;
 int SoundManager::soundServerVolume = -16;
 int SoundManager::soundLoadWaitTime = 200;
 
+int SoundManager::soundServerVolumeMin = -90;
+int SoundManager::soundServerVolumeMax = 8;
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 SoundManager::SoundManager():
 	myAssetCacheEnabled(false)
@@ -617,10 +620,10 @@ void SoundManager::cleanupAllSounds()
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void SoundManager::setServerVolume(int value)
 {
-	if( value > 8 )
-		soundServerVolume = 8;
-	else if( value < -30 )
-		soundServerVolume = -30;
+	if( value > soundServerVolumeMax )
+		soundServerVolume = soundServerVolumeMax;
+	else if( value < soundServerVolumeMin )
+		soundServerVolume = soundServerVolumeMin;
 	else
 		soundServerVolume = value;
 
@@ -1109,4 +1112,27 @@ void SoundEnvironment::setWetness(float value)
 float SoundEnvironment::getWetness()
 {
 	return environmentWetness;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// added for tempo clock
+// [Darren 29Sep14]
+void SoundEnvironment::startTempoClock(float tempo)
+{
+	if( soundManager->isSoundServerRunning() )
+	{
+		Message msg("/startTempoClock");
+		msg.pushFloat(tempo);
+		soundManager->sendOSCMessage(msg);
+	}
+}
+
+void SoundEnvironment::stopTempoClock()
+{
+	if( soundManager->isSoundServerRunning() )
+	{
+		Message msg("/stopTempoClock");
+		soundManager->sendOSCMessage(msg);
+	}
 }

@@ -36,7 +36,7 @@ include(UsePch)
 # TODO: should this be moved inside then omega OPENNI module block?
 if(WIN32)
 	include_directories($ENV{PROGRAMFILES}/OpenNI/Include)
-endif()
+endif(WIN32)
 
 # Add the core omega project
 add_subdirectory(omicron)

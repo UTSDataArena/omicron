@@ -60,7 +60,7 @@ public:
     virtual void poll();
     virtual void dispose();
 
-    void generateTrackerEvent(vrpn_TRACKERCB, int, unsigned short userId, int jointId);
+    void generateTrackerEvent(vrpn_TRACKERCB, int, unsigned short userId, int jointId, bool generate2dCoordinates);
 	void generateButtonEvent(VRPNStruct*, int, int buttonID, int stateFlag);
 
     //! Sets the data update interval, in seconds. This is the interval at which this service will generate events
@@ -74,6 +74,11 @@ private:
     
     const char* server_ip; // Tracker IP for all objects (unless marked otherwise)
 
+    int width;
+	int height;
+
+	int xOffset, yOffset;
+
     struct TrackerInfo
     {
         const char* server_ip;
@@ -82,6 +87,7 @@ private:
         int trackableId;
         unsigned short userId;
         int jointId;
+		bool generate2dCoordinates;
     };
 
     Vector<TrackerInfo> trackerNames; // Vector of the TrackerInfo struct
@@ -98,6 +104,7 @@ struct VRPNStruct
     int object_id;
     unsigned short userId;
     int jointId;
+	bool generate2dCoordinates;
     VRPNService* vrnpService;
 };
 ///////////////////////////////////////////////////////////////////////////////
