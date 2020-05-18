@@ -371,7 +371,7 @@ void Config::handleError() const
 
 // ---------------------------------------------------------------------------
 
-void Config::read(FILE *stream) throw(ParseException)
+void Config::read(FILE *stream) /* throw(ParseException) */
 {
   if(! config_read(_config, stream))
     handleError();
@@ -379,7 +379,7 @@ void Config::read(FILE *stream) throw(ParseException)
 
 // ---------------------------------------------------------------------------
 
-void Config::readString(const char *str) throw(ParseException)
+void Config::readString(const char *str) /* throw(ParseException) */
 {
   if(! config_read_string(_config, str))
     handleError();
@@ -394,8 +394,8 @@ void Config::write(FILE *stream) const
 
 // ---------------------------------------------------------------------------
 
-void Config::readFile(const char *filename) throw(FileIOException,
-                                                  ParseException)
+void Config::readFile(const char *filename) /* throw(FileIOException,
+                                                  ParseException) */
 {
   if(! config_read_file(_config, filename))
     handleError();
@@ -403,7 +403,7 @@ void Config::readFile(const char *filename) throw(FileIOException,
 
 // ---------------------------------------------------------------------------
 
-void Config::writeFile(const char *filename) throw(FileIOException)
+void Config::writeFile(const char *filename) /* throw(FileIOException) */
 {
   if(! config_write_file(_config, filename))
     handleError();
@@ -412,7 +412,7 @@ void Config::writeFile(const char *filename) throw(FileIOException)
 // ---------------------------------------------------------------------------
 
 Setting & Config::lookup(const char *path) const
-  throw(SettingNotFoundException)
+  /* throw(SettingNotFoundException) */
 {
   config_setting_t *s = config_lookup(_config, path);
   if(! s)
@@ -607,7 +607,7 @@ void Setting::setFormat(Format format) throw()
 
 // ---------------------------------------------------------------------------
 
-Setting::operator bool() const throw(SettingTypeException) 
+Setting::operator bool() const /* throw(SettingTypeException) */
 {
   assertType(TypeBoolean);
 
@@ -616,7 +616,7 @@ Setting::operator bool() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator int() const throw(SettingTypeException)
+Setting::operator int() const /* throw(SettingTypeException) */
 {
   assertType(TypeInt);
 
@@ -625,7 +625,7 @@ Setting::operator int() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator unsigned int() const throw(SettingTypeException)
+Setting::operator unsigned int() const /* throw(SettingTypeException) */
 {
   assertType(TypeInt);
 
@@ -639,7 +639,7 @@ Setting::operator unsigned int() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator long() const throw(SettingTypeException)
+Setting::operator long() const /* throw(SettingTypeException) */
 {
   if(sizeof(long) == sizeof(long long))
     return operator long long();
@@ -649,7 +649,7 @@ Setting::operator long() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator unsigned long() const throw(SettingTypeException)
+Setting::operator unsigned long() const /* throw(SettingTypeException) */
 {
   if(sizeof(long) == sizeof(long long))
     return operator unsigned long long();
@@ -659,7 +659,7 @@ Setting::operator unsigned long() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator long long() const throw(SettingTypeException)
+Setting::operator long long() const /* throw(SettingTypeException) */
 {
   assertType(TypeInt64);
 
@@ -668,7 +668,7 @@ Setting::operator long long() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator unsigned long long() const throw(SettingTypeException)
+Setting::operator unsigned long long() const /* throw(SettingTypeException) */
 {
   assertType(TypeInt64);
 
@@ -682,7 +682,7 @@ Setting::operator unsigned long long() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator double() const throw(SettingTypeException)
+Setting::operator double() const /* throw(SettingTypeException) */
 {
   assertType(TypeFloat);
 
@@ -691,7 +691,7 @@ Setting::operator double() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator float() const throw(SettingTypeException)
+Setting::operator float() const /* throw(SettingTypeException) */
 {
   assertType(TypeFloat);
 
@@ -701,7 +701,7 @@ Setting::operator float() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator const char *() const throw(SettingTypeException)
+Setting::operator const char *() const /* throw(SettingTypeException) */
 {
   assertType(TypeString);
 
@@ -710,7 +710,7 @@ Setting::operator const char *() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting::operator std::string() const throw(SettingTypeException)
+Setting::operator std::string() const /* throw(SettingTypeException) */
 {
   assertType(TypeString);
 
@@ -725,7 +725,7 @@ Setting::operator std::string() const throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::operator=(bool value) throw(SettingTypeException)
+Setting & Setting::operator=(bool value) /* throw(SettingTypeException) */
 {
   assertType(TypeBoolean);
 
@@ -736,7 +736,7 @@ Setting & Setting::operator=(bool value) throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::operator=(int value) throw(SettingTypeException)
+Setting & Setting::operator=(int value) /* throw(SettingTypeException) */
 {
   assertType(TypeInt);
 
@@ -747,7 +747,7 @@ Setting & Setting::operator=(int value) throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::operator=(long value) throw(SettingTypeException)
+Setting & Setting::operator=(long value) /* throw(SettingTypeException) */
 {
   if(sizeof(long) == sizeof(long long))
     return(operator=(static_cast<long long>(value)));
@@ -758,7 +758,7 @@ Setting & Setting::operator=(long value) throw(SettingTypeException)
 // ---------------------------------------------------------------------------
 
 Setting & Setting::operator=(const long long &value)
-  throw(SettingTypeException)
+  /* throw(SettingTypeException) */
 {
   assertType(TypeInt64);
 
@@ -769,7 +769,7 @@ Setting & Setting::operator=(const long long &value)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::operator=(const double &value) throw(SettingTypeException)
+Setting & Setting::operator=(const double &value) /* throw(SettingTypeException) */
 {
   assertType(TypeFloat);
 
@@ -780,7 +780,7 @@ Setting & Setting::operator=(const double &value) throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::operator=(float value) throw(SettingTypeException)
+Setting & Setting::operator=(float value) /* throw(SettingTypeException) */
 {
   assertType(TypeFloat);
 
@@ -793,7 +793,7 @@ Setting & Setting::operator=(float value) throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::operator=(const char *value) throw(SettingTypeException)
+Setting & Setting::operator=(const char *value) /* throw(SettingTypeException) */
 {
   assertType(TypeString);
 
@@ -805,7 +805,7 @@ Setting & Setting::operator=(const char *value) throw(SettingTypeException)
 // ---------------------------------------------------------------------------
 
 Setting & Setting::operator=(const std::string &value)
-  throw(SettingTypeException)
+  /* throw(SettingTypeException) */
 {
   assertType(TypeString);
 
@@ -817,7 +817,7 @@ Setting & Setting::operator=(const std::string &value)
 // ---------------------------------------------------------------------------
 
 Setting & Setting::operator[](int i) const
-  throw(SettingTypeException, SettingNotFoundException)
+  /* throw(SettingTypeException, SettingNotFoundException) */
 {
   if((_type != TypeArray) && (_type != TypeGroup) && (_type != TypeList))
     throw SettingTypeException(*this, i);
@@ -833,7 +833,7 @@ Setting & Setting::operator[](int i) const
 // ---------------------------------------------------------------------------
 
 Setting & Setting::operator[](const char *key) const
-  throw(SettingTypeException, SettingNotFoundException)
+  /* throw(SettingTypeException, SettingNotFoundException) */
 {
   assertType(TypeGroup);
 
@@ -963,7 +963,7 @@ std::string Setting::getPath() const
 
 // ---------------------------------------------------------------------------
 
-const Setting & Setting::getParent() const throw(SettingNotFoundException)
+const Setting & Setting::getParent() const /* throw(SettingNotFoundException) */
 {
   config_setting_t *setting = config_setting_parent(_setting);
 
@@ -975,7 +975,7 @@ const Setting & Setting::getParent() const throw(SettingNotFoundException)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::getParent() throw(SettingNotFoundException)
+Setting & Setting::getParent() /* throw(SettingNotFoundException) */
 {
   config_setting_t *setting = config_setting_parent(_setting);
 
@@ -1016,7 +1016,7 @@ int Setting::getIndex() const throw()
 // ---------------------------------------------------------------------------
 
 void Setting::remove(const char *name)
-  throw(SettingTypeException, SettingNotFoundException)
+  /* throw(SettingTypeException, SettingNotFoundException) */
 {
   assertType(TypeGroup);
 
@@ -1027,7 +1027,7 @@ void Setting::remove(const char *name)
 // ---------------------------------------------------------------------------
 
 void Setting::remove(unsigned int idx)
-  throw(SettingTypeException, SettingNotFoundException)
+  /* throw(SettingTypeException, SettingNotFoundException) */
 {
   if((_type != TypeArray) && (_type != TypeGroup) && (_type != TypeList))
     throw SettingTypeException(*this, idx);
@@ -1039,7 +1039,7 @@ void Setting::remove(unsigned int idx)
 // ---------------------------------------------------------------------------
 
 Setting & Setting::add(const char *name, Setting::Type type)
-  throw(SettingNameException, SettingTypeException)
+  /* throw(SettingNameException, SettingTypeException) */
 {
   assertType(TypeGroup);
 
@@ -1058,7 +1058,7 @@ Setting & Setting::add(const char *name, Setting::Type type)
 
 // ---------------------------------------------------------------------------
 
-Setting & Setting::add(Setting::Type type) throw(SettingTypeException)
+Setting & Setting::add(Setting::Type type) /* throw(SettingTypeException) */
 {
   if((_type != TypeArray) && (_type != TypeList))
     throw SettingTypeException(*this);
@@ -1118,7 +1118,7 @@ Setting & Setting::add(Setting::Type type) throw(SettingTypeException)
 
 // ---------------------------------------------------------------------------
 
-void Setting::assertType(Setting::Type type) const throw(SettingTypeException)
+void Setting::assertType(Setting::Type type) const /* throw(SettingTypeException) */
 {
   if(type != _type)
   {
