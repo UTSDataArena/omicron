@@ -520,7 +520,7 @@ namespace omicronConnector
         void poll();
         void dispose();
         void setDataport(int);
-		bool sendMsg(char*);
+		bool sendMsg(const char*);
     private:
         bool initHandshake(int);
         void parseDGram(int);
@@ -640,7 +640,7 @@ namespace omicronConnector
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	//template<typename ListenerType>
-	inline bool OmicronConnectorClient::sendMsg(char* sendbuf)
+	inline bool OmicronConnectorClient::sendMsg(const char* sendbuf)
 	{
 		int iResult = send(ConnectSocket, sendbuf, (int)strlen(sendbuf), 0);
 
