@@ -64,7 +64,7 @@ namespace omicron
     friend class EventUtils; 
     friend class Service; 
     public:
-        static const int ExtraDataSize = 1024;
+		static const int ExtraDataSize = DEFAULT_BUFLEN;
         static const int MaxExtraDataItems = 32;
         static Event::Flags parseButtonName(const String& name);
         static int parseJointName(const String& name);
@@ -72,7 +72,7 @@ namespace omicron
     public:
         Event();
 
-        void copyFrom(const Event& e);
+		void copyFrom(const Event& e);
         //! Serializes this event to a streamable event data packet. Returns the
         //! size of data to stream.
         size_t serialize(omicronConnector::EventData* ed) const;
@@ -174,8 +174,9 @@ namespace omicron
         void setExtraDataVector3(int index, const Vector3f value);
         const char* getExtraDataString() const;
         void setExtraDataString(const String& value);
-        void resetExtraData();
+		void resetExtraData();
         bool isExtraDataNull(int pointId) const;
+		bool isExtraDataLarge() const;
         void setExtraData(ExtraDataType type, unsigned int items, int mask, void* data);
         uint getExtraDataMask() const { return myExtraDataValidMask; }
 
@@ -204,6 +205,9 @@ namespace omicron
         int myExtraDataItems;
         int myExtraDataValidMask;
         char myExtraData[ExtraDataSize];
+
+		bool usingExtraDataLarge = false;
+		char* myExtraDataLarge;
     };
 
     ///////////////////////////////////////////////////////////////////////////
@@ -314,6 +318,12 @@ namespace omicron
         ftime( &tb );
         int curTime = tb.millitm + (tb.time & 0xfffff) * 1000; // Millisecond timer
         myTimestamp = curTime;
+
+		if (usingExtraDataLarge)
+		{
+			delete(myExtraDataLarge);
+			usingExtraDataLarge = false;
+		}
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -570,7 +580,14 @@ namespace omicron
     ///////////////////////////////////////////////////////////////////////////
     inline void* Event::getExtraDataBuffer() const
     {
-        return (void*)myExtraData;
+		if (usingExtraDataLarge)
+		{
+			return (void*)myExtraDataLarge;
+		}
+		else
+		{
+			return (void*)myExtraData;
+		}
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -579,15 +596,24 @@ namespace omicron
         myExtraDataType = type;
         myExtraDataItems = items;
         myExtraDataValidMask = mask;
-        memcpy(myExtraData, data, getExtraDataSize());
+		if (getExtraDataSize() <= ExtraDataSize)
+		{
+			memcpy(myExtraData, data, getExtraDataSize());
+		}
+		else
+		{
+			usingExtraDataLarge = true;
+			myExtraDataLarge = new char[DEFAULT_LRGBUFLEN];
+			memcpy(myExtraDataLarge, data, getExtraDataSize());
+		}
     }
 
     ///////////////////////////////////////////////////////////////////////////
     inline void Event::setExtraDataString(const String& value)
     {
-        oassert(myExtraDataType == ExtraDataString);
-        strcpy((char*)myExtraData, value.c_str());
-        myExtraDataItems = (int)value.size();
+		int stringSize = (int)value.size();
+        myExtraDataItems = (stringSize > ExtraDataSize) ? ExtraDataSize : stringSize;
+        strncpy((char*)myExtraData, value.c_str(), myExtraDataItems);
         myExtraData[myExtraDataItems] = '\0';
     }
 
@@ -597,6 +623,12 @@ namespace omicron
         myExtraDataValidMask = 0; 
         myExtraDataType = ExtraDataNull;
         myExtraDataItems = 0;
+
+		if (usingExtraDataLarge)
+		{
+			usingExtraDataLarge = false;
+			delete(myExtraDataLarge);
+		}
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -606,6 +638,12 @@ namespace omicron
     ///////////////////////////////////////////////////////////////////////////
     inline int Event::getExtraDataItems() const
     { return myExtraDataItems; }
+
+	///////////////////////////////////////////////////////////////////////////
+	inline bool Event::isExtraDataLarge() const
+	{
+		return usingExtraDataLarge;
+	}
 
     ///////////////////////////////////////////////////////////////////////////
     inline int Event::getExtraDataSize() const
@@ -621,12 +659,13 @@ namespace omicron
         case ExtraDataVector3Array:
             return myExtraDataItems * 4 * 3;
         case ExtraDataString:
+		case ExtraDataByte:
             return myExtraDataItems;
         default:
             oerror("Event::getExtraDataSize: unknown extra data type");
         }
 
-        // Default: return data lengthp
+        // Default: return data length
         return myExtraDataItems;
     }
 

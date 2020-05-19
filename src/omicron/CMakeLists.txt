@@ -236,12 +236,10 @@ if(WIN32)
 endif()
 
 # PQLabs touch surface module
-if(WIN32)
-    set(OMICRON_USE_PQLABS true CACHE BOOL "Enable/disable PqLabs multitouch support")
-    if(OMICRON_USE_PQLABS)
-        set( srcs	 ${srcs} omicron/PQService.cpp )
-        set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/PQService.h )
-    endif()
+set(OMICRON_USE_PQLABS true CACHE BOOL "Enable/disable PqLabs multitouch support")
+if(OMICRON_USE_PQLABS)
+	set( srcs	 ${srcs} omicron/PQService.cpp )
+	set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/PQService.h )
 endif()
 
 # DirectInput support
@@ -268,31 +266,27 @@ if(WIN32)
 endif()
     
 # VRPN module support
+set(OMICRON_USE_VRPN true CACHE BOOL "Enable/disable VRPN Client support") # always use VRPN
 if(WIN32)
-    if(OMICRON_TOOL_VS12)
-        set(OMICRON_USE_VRPN true CACHE BOOL "Enable/disable VRPN Client support")
-        if(OMICRON_USE_VRPN)
-            set( srcs	 ${srcs} omicron/VRPNService.cpp
-                         ${srcs} omicron/VRPNDevice.cpp
-                )
-            set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
+    if(OMICRON_USE_VRPN)
+    set( srcs	 ${srcs} omicron/VRPNService.cpp
+                 ${srcs} omicron/VRPNDevice.cpp
+    )
+    set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDevice.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_BaseClass.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Configure.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Connection.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Shared.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Tracker.h
+                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Types.h           
+    )
+    include_directories( ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
                          ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDevice.h
-                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_BaseClass.h
-                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Configure.h
-                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Connection.h
-                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Shared.h
-                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Tracker.h
-                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Types.h
-                         
-                )
-            include_directories( ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
-                                 ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDevice.h
-                                 ${CMAKE_SOURCE_DIR}/include/omicron/vrpn
-                )
-        endif()
+                         ${CMAKE_SOURCE_DIR}/include/omicron/vrpn
+    )
     endif()
-# linux support for vrpn controllers (3dConnexion space navigator and xbox 360 controllers)
-else()
+else() # linux support for vrpn controllers (3dConnexion space navigator and xbox 360 controllers)
     if(OMICRON_USE_VRPN)
 
         set( srcs	 ${srcs} omicron/VRPNService.cpp
@@ -352,7 +346,11 @@ endif()
 
 ###############################################################################
 # Setup module-specific link info
-set(EXT_LIB_DIR ${CMAKE_SOURCE_DIR}/external/libs32)
+if(OMICRON_ARCH_64)
+	set(EXT_LIB_DIR ${CMAKE_SOURCE_DIR}/external/libs64)
+elseif(OMICRON_ARCH_32)
+	set(EXT_LIB_DIR ${CMAKE_SOURCE_DIR}/external/libs32)
+endif()
 
 if(OMICRON_USE_NATURAL_POINT)
     if(WIN32)
@@ -377,7 +375,12 @@ if(OMICRON_USE_PQLABS)
         # Copy the PQLabs dll into the destination bin directory
         configure_file(${EXT_LIB_DIR}/PQMTClient.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG} COPYONLY)
         configure_file(${EXT_LIB_DIR}/PQMTClient.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE} COPYONLY)
-    endif(WIN32)
+	else(WIN32)
+	# target_link_libraries( omicron ${EXT_LIB_DIR}/libPQMTClient.a)
+        # Copy the PQLabs dll into the destination bin directory
+        # configure_file(${EXT_LIB_DIR}/libPQMTClient.a ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG} COPYONLY)
+        # configure_file(${EXT_LIB_DIR}/libPQMTClient.a ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE} COPYONLY)
+	endif(WIN32)
 endif(OMICRON_USE_PQLABS)
 
 if(OMICRON_USE_NETSERVICE)
@@ -429,6 +432,7 @@ if(OMICRON_USE_KINECT_FOR_WINDOWS_AUDIO)
     if(WIN32)
         target_link_libraries( omicron ${EXT_LIB_DIR}/sapi.lib)
         configure_file(${EXT_LIB_DIR}/Microsoft.Speech.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG} COPYONLY)
+		configure_file(${EXT_LIB_DIR}/Microsoft.Speech.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE} COPYONLY)
         target_link_libraries( omicron Msdmo.lib )
         target_link_libraries( omicron dmoguids.lib )
         target_link_libraries( omicron amstrmid.lib )
@@ -448,9 +452,10 @@ endif(OMICRON_USE_DIRECTINPUT)
 
 if(OMICRON_USE_VRPN)
     if(WIN32)
-        target_link_libraries( omicron ${EXT_LIB_DIR}/vrpn.lib)
-    # linux
-    else(WIN32)
+        target_link_libraries( omicron debug ${EXT_LIB_DIR}/vrpnd.lib)
+        target_link_libraries( omicron optimized ${EXT_LIB_DIR}/vrpn.lib)
+        target_link_libraries( omicron ${EXT_LIB_DIR}/quat.lib)
+    else(WIN32) # linux
         add_library( vrpn SHARED IMPORTED)
         set_target_properties( vrpn PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpn.a )
         add_library( vrpnserver SHARED IMPORTED )
@@ -469,12 +474,19 @@ if(OMICRON_USE_VRPN)
 endif(OMICRON_USE_VRPN)
 
 if(OMICRON_USE_THINKGEAR)
-    if(WIN32)
-        target_link_libraries( omicron ${EXT_LIB_DIR}/thinkgear.lib)
-        # Copy the dll into the destination bin directory
-        configure_file(${EXT_LIB_DIR}/thinkgear.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG} COPYONLY)
-        configure_file(${EXT_LIB_DIR}/thinkgear.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE} COPYONLY)
-    endif(WIN32)
+	if(WIN32)
+		if(OMICRON_ARCH_32)
+			target_link_libraries( omicron ${EXT_LIB_DIR}/thinkgear.lib)
+			# Copy the dll into the destination bin directory
+			configure_file(${EXT_LIB_DIR}/thinkgear.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG} COPYONLY)
+			configure_file(${EXT_LIB_DIR}/thinkgear.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE} COPYONLY)
+		elseif(OMICRON_ARCH_64)
+			target_link_libraries( omicron ${EXT_LIB_DIR}/thinkgear64.lib)
+			# Copy the dll into the destination bin directory
+			configure_file(${EXT_LIB_DIR}/thinkgear64.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG} COPYONLY)
+			configure_file(${EXT_LIB_DIR}/thinkgear64.dll ${CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE} COPYONLY)
+		endif()
+	endif(WIN32)
 endif(OMICRON_USE_THINKGEAR)
 
 ###############################################################################

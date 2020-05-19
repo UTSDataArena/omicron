@@ -1,13 +1,13 @@
 /******************************************************************************
  * THE OMICRON SDK
  *-----------------------------------------------------------------------------
- * Copyright 2010-2015		Electronic Visualization Laboratory, 
+ * Copyright 2010-2019		Electronic Visualization Laboratory, 
  *							University of Illinois at Chicago
  * Authors:										
  *  Arthur Nishimoto		anishimoto42@gmail.com
  *  Alessandro Febretti		febret@gmail.com
  *-----------------------------------------------------------------------------
- * Copyright (c) 2010-2015, Electronic Visualization Laboratory,  
+ * Copyright (c) 2010-2019, Electronic Visualization Laboratory,  
  * University of Illinois at Chicago
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, 
@@ -36,179 +36,112 @@
  ******************************************************************************/
 #include "omicron/InputServer.h"
 #include "omicron/StringUtils.h"
+#include "omicron/ServiceManager.h"
 #include <vector>
 
 #include <time.h>
 using namespace omicron;
 
 #include <stdio.h>
-
-using namespace omicron;
-
-///////////////////////////////////////////////////////////////////////////////
-// Based on Winsock UDP Server Example:
-// http://msdn.microsoft.com/en-us/library/ms740148
-// Also based on Beej's Guide to Network Programming:
-// http://beej.us/guide/bgnet/output/html/multipage/clientserver.html
-class NetClient
-{
-private:
-    SOCKET sendSocket;
-    SOCKET msgSocket;
-    sockaddr_in recvAddr;
-    bool legacyMode;
-    bool connected;
-
-    const char* clientAddress;
-    int clientPort;
-public:
-    NetClient( const char* address, int port, SOCKET clientSocket )
-    {
-        clientAddress = address;
-        clientPort = port;
-
-        legacyMode = false;
-        connected = true;
-
-        // Create a UDP socket for sending data
-        sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-        // Set up the RecvAddr structure with the IP address of
-        // the receiver
-        recvAddr.sin_family = AF_INET;
-        recvAddr.sin_port = htons(port);
-        recvAddr.sin_addr.s_addr = inet_addr(address);
-        printf("NetClient %s:%i created...\n", address, port);
-
-        msgSocket = clientSocket;
-    }// CTOR
-
-    NetClient( const char* address, int port, int legacy, SOCKET clientSocket )
-    {
-        clientAddress = address;
-        clientPort = port;
-
-        legacyMode = legacy;
-        connected = true;
-
-        // Create a UDP socket for sending data
-        sendSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-        // Set up the RecvAddr structure with the IP address of
-        // the receiver
-        recvAddr.sin_family = AF_INET;
-        recvAddr.sin_port = htons(port);
-        recvAddr.sin_addr.s_addr = inet_addr(address);
-
-        msgSocket = clientSocket;
-
-        if( legacyMode )
-        {
-            printf("Legacy NetClient %s:%i created...\n", address, port);
-        }
-        else
-        {
-            printf("NetClient %s:%i created...\n", address, port);
-        }
-    }// CTOR
-
-    void sendEvent(char* eventPacket, int length)
-    {
-        // Send a datagram to the receiver
-        sendto(sendSocket, 
-            eventPacket, 
-            length, 
-            0,
-            (const struct sockaddr*)&recvAddr,
-            sizeof(recvAddr));
-    }// SendEvent
-
-    void sendMsg(char* eventPacket, int length)
-    {
-        // Ping the client to see if still active
-        int result = sendto(msgSocket, 
-            eventPacket, 
-            length, 
-            0,
-            (const struct sockaddr*)&recvAddr,
-            sizeof(recvAddr));
-
-        if( result == SOCKET_ERROR )
-        {
-            connected = false;
-        }
-    }// SendMsg
-
-    void setLegacy(bool value)
-    {
-        legacyMode = value;
-    }// setLegacy
-
-    bool isLegacy()
-    {
-        return legacyMode;
-    }// isLegacy
-
-    bool isConnected()
-    {
-        return connected;
-    }// isConnected
-};
+#include <iostream>
+#include <fstream>
 
 #define OI_WRITEBUF(type, buf, offset, val) *((type*)&buf[offset]) = val; offset += sizeof(type);
+#define OI_READBUF(type, buf, offset, val) val = *((type*)&buf[offset]); offset += sizeof(type);
+
+const char* InputServer::handshake = "data_on";
+const char* InputServer::omicronHandshake = "omicron_data_on";
+const char* InputServer::omicronV2Handshake = "omicronV2_data_on";
+const char* InputServer::omicronStreamInHandshake = "omicron_data_in";
+const char* InputServer::legacyHandshake = "omicron_legacy_data_on";
+const char* InputServer::tactileHandshake = "tactile_data_on";
+const char* InputServer::omicronV3Handshake = "omicronV3_data_on";
 
 ///////////////////////////////////////////////////////////////////////////////
-// Creates an event packet from an Omicron event. Returns the buffer offset.
-char* InputServer::createOmicronEventPacket(const Event* evt)
+// Creates an event packet from an Omicron event. Returns the buffer.
+char* InputServer::createOmicronPacketFromEvent(const Event* evt)
 {
-    int offset = 0;
-    
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getTimestamp()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getSourceId()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getDeviceTag()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getServiceType()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getType()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getFlags()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getPosition().x()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getPosition().y()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getPosition().z()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().w()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().x()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().y()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().z()); 
-        
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getExtraDataType()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getExtraDataItems()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getExtraDataMask());
-        
-    if(evt->getExtraDataType() != Event::ExtraDataNull)
-    {
-        memcpy(&eventPacket[offset], evt->getExtraDataBuffer(), evt->getExtraDataSize());
-    }
-    offset += evt->getExtraDataSize();
+	int offset = 0;
 
-    return eventPacket;
+	char* eventPacket;
+
+	if (evt->isExtraDataLarge())
+	{
+		eventPacket = new char[DEFAULT_LRGBUFLEN];
+	}
+	else
+	{
+		eventPacket = new char[DEFAULT_BUFLEN];
+	}
+
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getTimestamp());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getSourceId());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getDeviceTag());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getServiceType());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getType());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getFlags());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getPosition().x());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getPosition().y());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getPosition().z());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().w());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().x());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().y());
+	OI_WRITEBUF(float, eventPacket, offset, evt->getOrientation().z());
+
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getExtraDataType());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getExtraDataItems());
+	OI_WRITEBUF(unsigned int, eventPacket, offset, evt->getExtraDataMask());
+
+	if (evt->getExtraDataType() != Event::ExtraDataNull)
+	{
+		memcpy(&eventPacket[offset], evt->getExtraDataBuffer(), evt->getExtraDataSize());
+	}
+	offset += evt->getExtraDataSize();
+
+	return eventPacket;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Creates EventData from an Omicron event packet. Returns the EventData.
+omicronConnector::EventData InputServer::createOmicronEventDataFromEventPacket(char* eventPacket)
+{
+	int offset = 0;
+	omicronConnector::EventData ed;
+
+	OI_READBUF(unsigned int, eventPacket, offset, ed.timestamp);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.sourceId);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.deviceTag);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.serviceType);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.type);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.flags);
+	OI_READBUF(float, eventPacket, offset, ed.posx);
+	OI_READBUF(float, eventPacket, offset, ed.posy);
+	OI_READBUF(float, eventPacket, offset, ed.posz);
+	OI_READBUF(float, eventPacket, offset, ed.orw);
+	OI_READBUF(float, eventPacket, offset, ed.orx);
+	OI_READBUF(float, eventPacket, offset, ed.ory);
+	OI_READBUF(float, eventPacket, offset, ed.orz);
+
+	OI_READBUF(unsigned int, eventPacket, offset, ed.extraDataType);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.extraDataItems);
+	OI_READBUF(unsigned int, eventPacket, offset, ed.extraDataMask);
+	memcpy(ed.extraData, &eventPacket[offset], omicronConnector::EventData::ExtraDataSize);
+
+	return ed;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Sets the ServiceManager for accessing event stream
+void InputServer::setServiceManager(ServiceManager* sm)
+{
+	serviceManager = sm;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 //
 void InputServer::sendToClients(char* eventPacket)
 {
-    std::map<char*,NetClient*>::iterator itr = netClients.begin();
-    while( itr != netClients.end() )
-    {
-        NetClient* client = itr->second;
-
-        if( client->isLegacy() )
-        {
-            //client->sendEvent(legacyPacket, 512);
-        }
-        else
-        {
-            client->sendEvent(eventPacket, DEFAULT_BUFLEN);
-        }
-        itr++;
-    }
+    
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -217,6 +150,7 @@ void InputServer::handleEvent(const Event& evt)
 {
     // If the event has been processed locally (i.e. by a filter event service)
     if(evt.isProcessed()) return;
+	//if (!serviceManager && evt.isProcessed()) return;
 
     timeb tb;
     ftime( &tb );
@@ -227,33 +161,59 @@ void InputServer::handleEvent(const Event& evt)
 #endif
             
     int offset = 0;
-            
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getTimestamp()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getSourceId()); 
-    OI_WRITEBUF(int, eventPacket, offset, evt.getDeviceTag()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getServiceType()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getType()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getFlags()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getPosition().x()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getPosition().y()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getPosition().z()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().w()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().x()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().y()); 
-    OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().z()); 
-        
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getExtraDataType()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getExtraDataItems()); 
-    OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getExtraDataMask());
-        
-    if(evt.getExtraDataType() != Event::ExtraDataNull)
-    {
-        memcpy(&eventPacket[offset], evt.getExtraDataBuffer(), evt.getExtraDataSize());
-    }
-    offset += evt.getExtraDataSize();
-        
-    //handleLegacyEvent(evt);
-        
+
+	if (evt.isExtraDataLarge())
+	{
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getTimestamp());
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getSourceId());
+		OI_WRITEBUF(int, eventPacketLarge, offset, evt.getDeviceTag());
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getServiceType());
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getType());
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getFlags());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getPosition().x());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getPosition().y());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getPosition().z());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getOrientation().w());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getOrientation().x());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getOrientation().y());
+		OI_WRITEBUF(float, eventPacketLarge, offset, evt.getOrientation().z());
+
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getExtraDataType());
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getExtraDataItems());
+		OI_WRITEBUF(unsigned int, eventPacketLarge, offset, evt.getExtraDataMask());
+
+		memcpy(&eventPacketLarge[offset], evt.getExtraDataBuffer(), evt.getExtraDataSize());
+
+		offset += evt.getExtraDataSize();
+	}
+	else
+	{
+
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getTimestamp());
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getSourceId());
+		OI_WRITEBUF(int, eventPacket, offset, evt.getDeviceTag());
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getServiceType());
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getType());
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getFlags());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getPosition().x());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getPosition().y());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getPosition().z());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().w());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().x());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().y());
+		OI_WRITEBUF(float, eventPacket, offset, evt.getOrientation().z());
+
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getExtraDataType());
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getExtraDataItems());
+		OI_WRITEBUF(unsigned int, eventPacket, offset, evt.getExtraDataMask());
+
+		memcpy(&eventPacket[offset], evt.getExtraDataBuffer(), evt.getExtraDataSize());
+
+		offset += evt.getExtraDataSize();
+
+		validTacTileEvent = handleTacTileEvent(evt);
+	}
+
     if( showStreamSpeed )
     {
         if( (timestamp - lastOutgoingEventTime) >= 1000 )
@@ -268,49 +228,79 @@ void InputServer::handleEvent(const Event& evt)
         }
     }
 
-    if( showEventStream )
-        printf("oinputserver: Event %d type: %d sent at pos %f %f\n", evt.getSourceId(), evt.getType(), evt.getPosition().x(), evt.getPosition().y() );
-        
-    std::map<char*,NetClient*> activeClients;
+	if (showEventStream)
+		printf("oinputserver: Event %d type: %d flags: %d sent at pos %f %f\n", evt.getSourceId(), evt.getType(), evt.getFlags(), evt.getPosition().x(), evt.getPosition().y());
 
-    std::map<char*,NetClient*>::iterator itr = netClients.begin();
-    while( itr != netClients.end() )
-    {
-        NetClient* client = itr->second;
-            
-        if( client->isLegacy() )
-        {
-            //client->sendEvent(legacyPacket, 512);
-        }
-        else
-        {
-            // Send an empty message to check if the client is still here.
-            //client->sendMsg("",1);
-            client->sendEvent(eventPacket, offset);
-        }
-        /*
-        if( checkForDisconnectedClients )
-        {
-            // If client is still connected add to active list
-            if( client->isConnected() )
-            {
-                activeClients[itr->first] = client;
-            }
-            else // Client disconnected, remove from list
-            {
-                ofmsg("OInputServer: Client '%1%' Disconnected.", %itr->first);
-                delete client;
-            }
-        }
-        */
-        itr++;
-    }
+	// Send to clients
+	std::map<char*, NetClient*>::iterator itr = netClients.begin();
+	while (itr != netClients.end())
+	{
+		NetClient* client = itr->second;
 
-    //if( checkForDisconnectedClients )
-    //    netClients = activeClients;
+		// Only send service types client requested
+		if (client->requestedServiceType(evt.getServiceType()))
+		{
+
+			if (client->getMode() == data_omicron_legacy)
+			{
+				//client->sendEvent(legacyPacket, 512);
+			}
+			else if (client->getMode() == data_tactile)
+			{
+				if (validTacTileEvent)
+				{
+					client->sendEvent(tacTilePacket, 512);
+				}
+			}
+			else
+			{
+				if (evt.getType() == Event::Update || evt.getType() == Event::Move)
+				{
+					if (evt.isExtraDataLarge())
+					{
+						client->sendEvent(eventPacketLarge, DEFAULT_LRGBUFLEN);
+					}
+					else
+					{
+						client->sendEvent(eventPacket, DEFAULT_BUFLEN);
+					}
+				}
+				else
+				{
+					// If client supports dual TCP/UDP (V2), send single events as TCP
+					if (client->getMode() == data_omicronV2)
+					{
+						if (evt.isExtraDataLarge())
+						{
+							client->sendMsg(eventPacketLarge, DEFAULT_LRGBUFLEN);
+						}
+						else
+						{
+							client->sendMsg(eventPacket, DEFAULT_BUFLEN);
+						}
+					}
+					else
+					{
+						if (evt.isExtraDataLarge())
+						{
+							client->sendEvent(eventPacketLarge, DEFAULT_LRGBUFLEN);
+						}
+						else
+						{
+							// Legacy support, send single events as UDP
+							client->sendEvent(eventPacket, DEFAULT_BUFLEN);
+						}
+					}
+				}
+			}
+		}
+		itr++;
+	}
 }
     
 ///////////////////////////////////////////////////////////////////////////////
+// Comma-separated string packet
+// [serviceType]:[eventType],[sourceID],[x],[y],[other data varying by event type]
 bool InputServer::handleLegacyEvent(const Event& evt)
 {
     //itoa(evt.getServiceType(), eventPacket, 10); // Append input type
@@ -516,6 +506,96 @@ bool InputServer::handleLegacyEvent(const Event& evt)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Comma-separated string packet (TacTile version)
+// Note dgram has a space appended to end
+// d-Flag (OmegaTracker/TacTile Event)
+// "[timestamp]:d:[id],[x],[y],[intensity] "
+//
+// Q-Flag (PQLabs Event)
+// "[timestamp]:q:[id],[x],[y],[w],[h],[gesture],[intensity] "
+// Gesture: 0 = down, 1 = move, 2 = up, 3 = hold
+bool InputServer::handleTacTileEvent(const Event& evt)
+{
+	//itoa(evt.getServiceType(), eventPacket, 10); // Append input type
+	sprintf(tacTilePacket, "%d", evt.getTimestamp());
+
+	strcat(tacTilePacket, ":");
+
+	strcat(tacTilePacket, "q");
+
+	strcat(tacTilePacket, ":");
+
+	char floatChar[32];
+
+	switch (evt.getServiceType())
+	{
+	case Service::Pointer:
+		//printf(" Touch type %d \n", evt.getType()); 
+		//printf("               at %f %f \n", x, y ); 
+
+		// Converts source id to char, appends to eventPacket
+		sprintf(floatChar, "%d", evt.getSourceId());
+		strcat(tacTilePacket, floatChar);
+		strcat(tacTilePacket, ","); // Spacer
+
+		// Converts x to char, appends to eventPacket
+		sprintf(floatChar, "%f", evt.getPosition().x());
+		strcat(tacTilePacket, floatChar);
+		strcat(tacTilePacket, ","); // Spacer
+
+		// Converts y to char, appends to eventPacket
+		sprintf(floatChar, "%f", evt.getPosition().y());
+		strcat(tacTilePacket, floatChar);
+
+		if (evt.getExtraDataItems() == 2) { // TouchPoint down/up/move
+
+			// Converts xWidth to char, appends to eventPacket
+			strcat(tacTilePacket, ","); // Spacer
+			sprintf(floatChar, "%f", evt.getExtraDataFloat(0));
+			strcat(tacTilePacket, floatChar);
+
+			// Converts yWidth to char, appends to eventPacket
+			strcat(tacTilePacket, ","); // Spacer
+			sprintf(floatChar, "%f", evt.getExtraDataFloat(1));
+			strcat(tacTilePacket, floatChar);
+
+		}
+
+		switch (evt.getType())
+		{
+		case(EventBase::Down):
+			// Converts gesture to char, appends to eventPacket
+			strcat(tacTilePacket, ","); // Spacer
+			sprintf(floatChar, "%d", 0);
+			strcat(tacTilePacket, floatChar);
+			break;
+		case(EventBase::Move):
+			// Converts gesture to char, appends to eventPacket
+			strcat(tacTilePacket, ","); // Spacer
+			sprintf(floatChar, "%d", 1);
+			strcat(tacTilePacket, floatChar);
+			break;
+		case(EventBase::Up):
+			// Converts gesture to char, appends to eventPacket
+			strcat(tacTilePacket, ","); // Spacer
+			sprintf(floatChar, "%d", 2);
+			strcat(tacTilePacket, floatChar);
+			break;
+		}
+
+		// Intensity (Not really used, just to match the old message format
+		strcat(tacTilePacket, ","); // Spacer
+		sprintf(floatChar, "%f", 1.0);
+		strcat(tacTilePacket, floatChar);
+
+		strcat(tacTilePacket, " "); // Spacer
+
+		return true;
+	}
+	return false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void InputServer::startConnection(Config* cfg)
 {
 #ifdef OMICRON_OS_WIN
@@ -527,18 +607,23 @@ void InputServer::startConnection(Config* cfg)
 
     Setting& sCfg = cfg->lookup("config");
     serverPort = strdup(Config::getStringValue("serverPort", sCfg, "27000").c_str());
-    String serverIP = Config::getStringValue("serverListenIP", sCfg, "");
+    serverIP = strdup(Config::getStringValue("serverListenIP", sCfg, "").c_str());
 
     checkForDisconnectedClients = Config::getBoolValue("checkForDisconnectedClients", sCfg, false );
     showEventStream = Config::getBoolValue("showEventStream", sCfg, false );
     showStreamSpeed = Config::getBoolValue("showStreamSpeed", sCfg, false );
+	showEventMessages = Config::getBoolValue("showEventMessages", sCfg, false);
+	showIncomingStream = Config::getBoolValue("showIncomingStream", sCfg, false);
+	showIncomingMessages = Config::getBoolValue("showIncomingMessages", sCfg, false);
+
+	logClientConnectionsToFile = Config::getBoolValue("logClientConnectionsToFile", sCfg, false);
+	clientConnectLogFilePath = strdup(Config::getStringValue("clientLogPath", sCfg, "connectionLog.txt").c_str());
 
     if( checkForDisconnectedClients )
         omsg("Check for disconnected clients enabled.");
 
     listenSocket = INVALID_SOCKET;
     recvbuflen = DEFAULT_BUFLEN;
-    int iResult;
 
 #ifdef OMICRON_USE_VRPN
     // VRPN Server Test ///////////////////////////////////////////////
@@ -571,7 +656,7 @@ void InputServer::startConnection(Config* cfg)
     ///////////////////////////////////////////////////////////////////
 #endif
 
-    // Initialize Winsock
+    // Initialize socket
     SOCKET_INIT();
 
     struct addrinfo *result = NULL, *ptr = NULL, hints;
@@ -583,8 +668,8 @@ void InputServer::startConnection(Config* cfg)
     hints.ai_flags = AI_PASSIVE;
 
     // Resolve the local address and port to be used by the server
-    if( serverIP.length() != 0 )
-        iResult = getaddrinfo(strdup(serverIP.c_str()), serverPort, &hints, &result);
+    if( strlen(serverIP) != 0 )
+        iResult = getaddrinfo(strdup(serverIP), serverPort, &hints, &result);
     else
         iResult = getaddrinfo(NULL, serverPort, &hints, &result);
 
@@ -592,7 +677,7 @@ void InputServer::startConnection(Config* cfg)
     {
         ofmsg("OInputServer: getaddrinfo failed: %1%", %iResult);
         SOCKET_CLEANUP();
-    } 
+    }
     
     // Create a SOCKET for the server to listen for client connections
     listenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
@@ -602,11 +687,14 @@ void InputServer::startConnection(Config* cfg)
         ofmsg("OInputServer: Server listening on %1% port %2%", %serverIP %serverPort);
     }
 
-    // If iMode != 0, non-blocking mode is enabled.
-    u_long iMode = 1;
-
+	// Set listen socket as non-blocking
+#ifdef OMICRON_OS_WIN
+    u_long iMode = 1; // If iMode != 0, non-blocking mode is enabled.
     ioctlsocket(listenSocket,FIONBIO,&iMode);
-    
+#else
+	fcntl(listenSocket, F_SETFL, O_NONBLOCK);
+#endif
+
     if (listenSocket == INVALID_SOCKET) 
     {
         PRINT_SOCKET_ERROR("OInputServer::startConnection");
@@ -672,7 +760,7 @@ SOCKET InputServer::startListening()
     {
         // Gets the clientInfo and extracts the IP address
         clientAddress = inet_ntoa(clientInfo.sin_addr);
-        printf("OInputServer: Client '%s' Accepted.\n", clientAddress);
+        printf("OInputServer: Client '%s' connecting...\n", clientAddress);
     }
     
     // Wait for client handshake
@@ -694,57 +782,132 @@ SOCKET InputServer::startListening()
             //printf("Service: Bytes received: %d\n", iResult);
             char* inMessage;
             char* portCStr;
+			char* flagsCStr;
             inMessage = new char[iResult];
             portCStr = new char[iResult];
+			flagsCStr = new char[iResult];
 
+			int readState = 0; // 0 = message, 1 = dataPort, 2 = clientParameters
             // Iterate through message string and
             // separate 'data_on,' from the port number
             int portIndex = iResult;
+			int flagIndex = iResult;
             for( int i = 0; i < iResult; i++ )
             {
-                if( recvbuf[i] == ',' )
+                if( recvbuf[i] == ',' && readState == 0)
                 {
                     portIndex = i + 1;
-                    inMessage[i] = '\n';
+                    inMessage[i] = '\0';
+					readState = 1;
                 }
+				else if (recvbuf[i] == ',' && readState == 1)
+				{
+					flagIndex = i + 1;
+					readState = 2;
+				}
                 else if( i < portIndex )
                 {
                     inMessage[i] = recvbuf[i];
                 } 
-                else 
+                else if(readState == 1)
                 {
                     portCStr[i-portIndex] = recvbuf[i];
                     portCStr[i-portIndex+1] = '\n';
                 }
+				else if (readState == 2)
+				{
+					flagsCStr[i - flagIndex] = recvbuf[i];
+					flagsCStr[i - flagIndex + 1] = '\n';
+				}
             }
 
             // Make sure handshake is correct
-            char* handshake = "data_on";
-            char* omicronHandshake = "omicron_data_on";
-            char* legacyHandshake = "omicron_legacy_data_on";
             int dataPort = 7000; // default port
 
-            if( strcmp(inMessage, legacyHandshake) == 1 )
+			std::ofstream clientLogFile;
+
+			if (logClientConnectionsToFile)
+			{
+				timeb tb;
+				ftime(&tb);
+				int timestamp = tb.time;
+
+				clientLogFile.open(clientConnectLogFilePath, std::ios::app);
+
+				std::string clientAddrStr(clientAddress);
+				std::string serverAddrStr(serverIP);
+				clientLogFile << timestamp;
+				clientLogFile << " " + serverAddrStr + ":";
+				clientLogFile << atoi(serverPort);
+				clientLogFile << " " + clientAddrStr;
+				clientLogFile << ":";
+				clientLogFile << atoi(portCStr);
+			}
+
+            if( strcmp(inMessage, legacyHandshake) == 0 )
             {
                 // Get data port number
                 dataPort = atoi(portCStr);
                 printf("OInputServer: '%s' requests omicron legacy data to be sent on port '%d'\n", clientAddress, dataPort);
                 printf("OInputServer: WARNING - This server does not support legacy data!\n");
-                createClient( clientAddress, dataPort, true, clientSocket );
+                createClient( clientAddress, dataPort, data_omicron_legacy, clientSocket );
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED LEGACY";
             }
-            else if( strcmp(inMessage, omicronHandshake) == 1 )
+            else if( strcmp(inMessage, omicronHandshake) == 0 )
             {
                 // Get data port number
                 dataPort = atoi(portCStr);
                 printf("OInputServer: '%s' requests omicron data to be sent on port '%d'\n", clientAddress, dataPort);
-                createClient( clientAddress, dataPort, false, clientSocket );
+                createClient( clientAddress, dataPort, data_omicron, clientSocket );
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED OMICRON V1";
             }
-            else if( strcmp(inMessage, handshake) == 1 )
+			else if (strcmp(inMessage, omicronV2Handshake) == 0)
+			{
+				// Get data port number
+				dataPort = atoi(portCStr);
+				printf("OInputServer: '%s' requests omicron 2.0 (Dual TCP/UDP) data to be sent on port '%d'\n", clientAddress, dataPort);
+				createClient(clientAddress, dataPort, data_omicronV2, clientSocket);
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED OMICRON V2";
+			}
+			else if (strcmp(inMessage, omicronV3Handshake) == 0)
+			{
+				// Get data port number
+				dataPort = atoi(portCStr);
+				int flags = atoi(flagsCStr);
+				printf("OInputServer: '%s' requests omicron 3.0 (Client flags) data to be sent on port '%d' with flag '%d'\n", clientAddress, dataPort, flags);
+				createClient(clientAddress, dataPort, data_omicronV3, clientSocket, flags);
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED OMICRON V3";
+			}
+			else if (strcmp(inMessage, omicronStreamInHandshake) == 0)
+			{
+				// Get data port number
+				dataPort = atoi(portCStr);
+				printf("OInputServer: '%s' requests to SEND omicron data to be RECEIVED on port '%d'\n", clientAddress, dataPort);
+				createClient(clientAddress, dataPort, data_omicron_in, clientSocket);
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED OMICRON DATAIN";
+			}
+			else if (strcmp(inMessage, tactileHandshake) == 0)
+			{
+				// Get data port number
+				dataPort = atoi(portCStr);
+				printf("OInputServer: '%s' requests TacTile dgram data to be sent on port '%d'\n", clientAddress, dataPort);
+				createClient(clientAddress, dataPort, data_tactile, clientSocket);
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED TACTILE";
+			}
+            else if( strcmp(inMessage, handshake) == 0 )
             {
                 // Get data port number
                 dataPort = atoi(portCStr);
                 printf("OInputServer: '%s' requests data (old handshake) to be sent on port '%d'\n", clientAddress, dataPort);
-                createClient( clientAddress, dataPort, false, clientSocket );
+                createClient( clientAddress, dataPort, data_omicron, clientSocket );
+
+				if (logClientConnectionsToFile) clientLogFile << " ACCEPTED OMICRON OLD";
             }
             else
             {
@@ -752,8 +915,21 @@ SOCKET InputServer::startListening()
                 dataPort = atoi(portCStr);
                 printf("OInputServer: '%s' requests data to be sent on port '%d'\n", clientAddress, dataPort);
                 printf("OInputServer: '%s' using unknown handshake '%s'\n", clientAddress, inMessage);
-                createClient( clientAddress, dataPort, false, clientSocket );
+
+				if (logClientConnectionsToFile)
+				{
+					std::string inMsgStr(inMessage);
+					clientLogFile << " REJECTED '";
+					clientLogFile << inMsgStr;
+					clientLogFile << "'";
+				}
             }
+
+			if (logClientConnectionsToFile)
+			{
+				clientLogFile << "\n";
+				clientLogFile.close();
+			}
 
             gotData = true;
             delete inMessage;
@@ -791,11 +967,60 @@ void InputServer::loop()
 	}
 #endif // OMICRON_OS_WIN
 #endif
+
+	std::map<char*, NetClient*>::iterator p;
+	for (p = netClients.begin(); p != netClients.end(); p++)
+	{
+		char* clientAddress = p->first;
+		NetClient* client = p->second;
+
+		if ( client->isReceivingData() )
+		{
+			// Grab data from client
+			int iresult = client->recvEvent(eventPacketLarge, DEFAULT_LRGBUFLEN);
+			if (iresult > 0)
+			{
+				// Convert client packet to omicron event
+				omicronConnector::EventData ed = createOmicronEventDataFromEventPacket(eventPacketLarge);
+
+				if (showIncomingStream)
+				{
+					printf("InputServer: Data in id: %d pos: %f %f %f\n", ed.sourceId, ed.posx, ed.posy, ed.posz);
+					printf("             rot: %f %f %f %f\n", ed.orw, ed.orx, ed.ory, ed.orz);
+				}
+				if (showIncomingMessages && ed.serviceType == EventBase::ServiceTypeSpeech)
+				{
+					Event e;
+					e.deserialize(&ed);
+					printf("NetService: Speech in: (speech text, condidence) '%.*s' %f\n", e.getExtraDataItems(), e.getExtraDataString(), ed.posx);
+				}
+
+				// Add to local service manager's event list
+				if (serviceManager)
+				{
+					serviceManager->lockEvents();
+					Event* e = serviceManager->writeHead();
+					e->deserialize(&ed);
+
+					serviceManager->unlockEvents();
+				}
+			}
+			else
+			{
+				// printf("InputServer: No data\n");
+			}
+		}
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void InputServer::createClient(const char* clientAddress, int dataPort, bool legacy, SOCKET clientSocket)
+void InputServer::createClient(const char* clientAddress, int dataPort, DataMode mode, SOCKET clientSocket, int flags)
 {
+	if (flags == -1)
+	{
+		flags = NetClient::GetDefaultFlag();
+	}
+
     // Generate a unique name for client "address:port"
     char* addr = new char[128];
     strcpy( addr, clientAddress );
@@ -811,6 +1036,7 @@ void InputServer::createClient(const char* clientAddress, int dataPort, bool leg
     
     // Iterate through client map. If client name already exists,
     // do not add to list.
+	bool clientExists = false;
     std::map<char*, NetClient*>::iterator p;
     for(p = netClients.begin(); p != netClients.end(); p++) 
     {
@@ -818,22 +1044,43 @@ void InputServer::createClient(const char* clientAddress, int dataPort, bool leg
         if( strcmp(p->first, addr) == 0 )
         {
             printf("OInputServer: NetClient already exists: %s \n", addr );
+			clientExists = true;
+			p->second->updateClientSocket(clientSocket);
+			p->second->updateFlags(flags);
 
             // Check dataMode: if different, update client
-            if( p->second->isLegacy() != legacy )
+            if( p->second->getMode() != mode )
             {
-                if( legacy )
+                if(mode == data_omicron_legacy)
                 {
-                    printf("OInputServer: NetClient %s now using legacy omicron data \n", addr );
+                    printf("OInputServer: NetClient %s now requesting to receive legacy omicron data \n", addr );
                     printf("OInputServer: WARNING - This server does not support legacy data!\n");
                 }
+				else if (mode == data_omicron_in)
+				{
+					printf("OInputServer: NetClient %s now requesting to send omicron data \n", addr);
+				}
+				else if (mode == data_tactile)
+				{
+					printf("OInputServer: NetClient %s now requesting to receive Tactile dgram data \n", addr);
+				}
+				else if (mode == data_omicronV2)
+				{
+					printf("OInputServer: NetClient '%s' now requesting omicron 2.0 (Dual TCP/UDP) data \n", addr);
+				}
+				else if (mode == data_omicronV3)
+				{
+					printf("OInputServer: NetClient '%s' now requesting omicron 3.0 (Client flags) data \n", addr);
+				}
                 else
-                    printf("OInputServer: NetClient %s now using omicron data \n", addr );
-                p->second->setLegacy(legacy);
+                    printf("OInputServer: NetClient %s now requesting to receive omicron data \n", addr );
+                p->second->setMode(mode);
             }
-            return;
         }
     }
 
-    netClients[addr] = new NetClient( clientAddress, dataPort, legacy, clientSocket );
+	if (!clientExists)
+	{
+		netClients[addr] = new NetClient(clientAddress, dataPort, mode, clientSocket, flags);
+	}
 }

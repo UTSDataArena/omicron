@@ -1,11 +1,11 @@
 /**************************************************************************************************
 * THE OMICRON PROJECT
 *-------------------------------------------------------------------------------------------------
-* Copyright 2010-2015		Electronic Visualization Laboratory, University of Illinois at Chicago
+* Copyright 2010-2019		Electronic Visualization Laboratory, University of Illinois at Chicago
 * Authors:										
 *  Arthur Nishimoto		anishimoto42@gmail.com
 *-------------------------------------------------------------------------------------------------
-* Copyright (c) 2010-2015, Electronic Visualization Laboratory, University of Illinois at Chicago
+* Copyright (c) 2010-2019, Electronic Visualization Laboratory, University of Illinois at Chicago
 * All rights reserved.
 * Redistribution and use in source and binary forms, with or without modification, are permitted 
 * provided that the following conditions are met:
@@ -72,13 +72,26 @@ MSKinectService::MSKinectService(){
 void MSKinectService::setup(Setting& settings)
 {
 	myUpdateInterval = Config::getFloatValue("updateInterval", settings, 0.01f);
-	myCheckKinectInterval = Config::getFloatValue("checkInterval", settings, 2.00f);
+	myCheckKinectInterval = Config::getFloatValue("imageStreamInterval", settings, 0.2f);
+	serviceId = Config::getIntValue("serviceId", settings, 0);
 
 	m_bSeatedMode = Config::getBoolValue("seatedMode", settings, false);
 
 	debugInfo = Config::getBoolValue("debug", settings, false);
 
-	enableKinectAudio = Config::getBoolValue("enableKinectSpeech", settings, false);
+	enableKinectBody = Config::getBoolValue("enableKinectBody", settings, true);
+	enableKinectColor = Config::getBoolValue("enableKinectColor", settings, false);
+
+	enableKinectDepth = Config::getBoolValue("enableKinectDepth", settings, false);
+	depthReliableDataOnly = Config::getBoolValue("useReliableDepthOnly", settings, false);
+	highDetailDepth = Config::getBoolValue("highDetailDepth", settings, false);
+	lowDetailMaxDistance = Config::getFloatValue("lowDetailMaxDistance", settings, 8000); // mm
+
+	enableKinectSpeech = Config::getBoolValue("enableKinectSpeech", settings, false);
+	enableKinectSpeechGrammar = Config::getBoolValue("useGrammar", settings, true);
+	enableKinectSpeechDictation = Config::getBoolValue("useDictation", settings, false);
+
+	enableKinectAudio = Config::getBoolValue("enableKinectAudio", settings, false);
 
 	caveSimulator = Config::getBoolValue("caveSimulator", settings, false);
 	caveSimulatorHeadID = Config::getIntValue("caveSimulatorHeadID", settings, 0);
@@ -97,6 +110,7 @@ void MSKinectService::setup(Setting& settings)
 	speechGrammerFilePath = Config::getStringValue("speechGrammerFilePath", settings, "kinectSpeech.grxml");
 
 	confidenceThreshold = Config::getFloatValue("confidenceThreshold", settings, 0.3f);
+	beamConfidenceThreshold = Config::getFloatValue("beamConfidenceThreshold", settings, 0.1f);
 #endif
 }
 
@@ -114,25 +128,92 @@ std::wstring MSKinectService::StringToWString(const std::string& s)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MSKinectService::initialize() 
+void MSKinectService::initialize()
 {
 	mysInstance = this;
 
 	InitializeDefaultKinect();
 
 #ifdef OMICRON_USE_KINECT_FOR_WINDOWS_AUDIO
-	InitializeAudioStream();
+	if (enableKinectAudio || enableKinectSpeech)
+	{
+		InitializeAudioStream();
+	}
 #endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void MSKinectService::poll()
 {
-	pollBody();
+	float curt = (float)((double)clock() / CLOCKS_PER_SEC);
+	float lastt = lastUpdateTime;
 
+	if (enableKinectBody)
+	{
+		pollBody();
+	}
+
+	//if (curt - lastt > mysInstance->myUpdateInterval)
+	//{
+		if (enableKinectColor)
+		{
+			pollColor();
+		}
+
+
+		if (enableKinectDepth)
+		{
+			pollDepth();
+		}
+
+	//	lastUpdateTime = curt;
+	//}
+
+	if (color_pImageReady && curt - lastSendTime > mysInstance->myCheckKinectInterval)
+	{
+		unsigned long pImageSize = cColorWidth * cColorHeight * sizeof(RGBQUAD);
+
+		int nPackets = 270; // 1920 * 1080 = 2073600 * 4 = 8294400 / 256 = 32400 (max imageBuffer size = 41472)
+		int dataPacketSize = pImageSize / nPackets;
+
+		int eventsPerUpdate = 1;
+
+		for (int i = 0; i < eventsPerUpdate; i++)
+		{
+			memcpy(imageEventBuffer, &color_pImage[currentPacket * dataPacketSize], dataPacketSize);
+			Event* evt = mysInstance->writeHead();
+			evt->reset(Event::Update, Service::Image, currentFrameTimestamp);
+			evt->setPosition(cColorWidth, cColorHeight, 0); // Position: imageWidth, imageHeight, typeFlag (Color = 0, Depth = 1)
+			evt->setOrientation(currentPacket, nPackets, 0, 0);
+
+			evt->setExtraData(EventBase::ExtraDataByte, dataPacketSize, 1, imageEventBuffer);
+			mysInstance->unlockEvents();
+			currentPacket++;
+
+			if (currentPacket > nPackets - 1)
+			{
+				currentPacket = 0;
+				color_pImageReady = false;
+				break;
+			}
+		}
+
+		if (debugInfo)
+		{
+			if (color_pImageReady == true)
+			{
+				ofmsg("Kinect Color Frame %1% packet %2% to %3% generated", %currentFrameTimestamp % (currentPacket - eventsPerUpdate) % (currentPacket - 1));
+			}
+			else
+			{
+				ofmsg("Kinect Color Frame %1% packet %2% to %3% generated", %currentFrameTimestamp % (nPackets - eventsPerUpdate) % (nPackets - 1));
+			}
+		}
+
+		lastSendTime = curt;
+	}
 #ifdef OMICRON_USE_KINECT_FOR_WINDOWS_AUDIO
-	if( enableKinectAudio )
-		pollSpeech();
+	pollSpeech();
 #endif
 }
 
@@ -160,12 +241,17 @@ void MSKinectService::pollBody()
 		{
 			hr = pBodyFrame->GetAndRefreshBodyData(_countof(ppBodies), ppBodies);
 		}
-
+		
+		
 		if (SUCCEEDED(hr))
 		{
-			ProcessBody(nTime, BODY_COUNT, ppBodies);
+			Vector4* floorClipPlane = new Vector4();
+			pBodyFrame->get_FloorClipPlane(floorClipPlane);
+
+			ProcessBody(nTime, BODY_COUNT, ppBodies, floorClipPlane);
 		}
 
+		
 		for (int i = 0; i < _countof(ppBodies); ++i)
 		{
 			SafeRelease(ppBodies[i]);
@@ -179,8 +265,243 @@ void MSKinectService::pollBody()
 void MSKinectService::pollSpeech() 
 {
 #ifdef OMICRON_USE_KINECT_FOR_WINDOWS_AUDIO
-	ProcessSpeech();
+	if (enableKinectSpeechGrammar)
+		ProcessSpeech();
+	if (enableKinectSpeechDictation)
+		ProcessSpeechDictation();
+
+	if (enableKinectAudio)
+	{
+		ProcessAudio();
+	}
 #endif
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void MSKinectService::pollColor()
+{
+	if (!m_pColorFrameReader)
+	{
+		return;
+	}
+
+	IColorFrame* pColorFrame = NULL;
+
+	HRESULT hr = m_pColorFrameReader->AcquireLatestFrame(&pColorFrame);
+
+	if (SUCCEEDED(hr))
+	{
+		INT64 nTime = 0;
+		IFrameDescription* pFrameDescription = NULL;
+		int nWidth = 0;
+		int nHeight = 0;
+		ColorImageFormat imageFormat = ColorImageFormat_None;
+		UINT nBufferSize = 0;
+		RGBQUAD *pBuffer = NULL;
+
+		hr = pColorFrame->get_RelativeTime(&nTime);
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pColorFrame->get_FrameDescription(&pFrameDescription);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pFrameDescription->get_Width(&nWidth);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pFrameDescription->get_Height(&nHeight);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pColorFrame->get_RawColorImageFormat(&imageFormat);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			if (imageFormat == ColorImageFormat_Bgra)
+			{
+				hr = pColorFrame->AccessRawUnderlyingBuffer(&nBufferSize, reinterpret_cast<BYTE**>(&pBuffer));
+			}
+			else if (m_pColorRGBX)
+			{
+				pBuffer = m_pColorRGBX;
+				nBufferSize = cColorWidth * cColorHeight * sizeof(RGBQUAD);
+				hr = pColorFrame->CopyConvertedFrameDataToArray(nBufferSize, reinterpret_cast<BYTE*>(pBuffer), ColorImageFormat_Bgra);
+			}
+			else
+			{
+				hr = E_FAIL;
+			}
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			if (color_pImageReady == false)
+			{
+				color_pImage = reinterpret_cast<BYTE*>(pBuffer);
+
+				color_pImageReady = true;
+
+				timeb tb;
+				ftime(&tb);
+				currentFrameTimestamp = tb.millitm + (tb.time & 0xfffff) * 1000;
+
+				if (debugInfo)
+				{
+					ofmsg("Kinect Color Frame %1% Ready", %currentFrameTimestamp);
+				}
+			}
+		}
+
+		SafeRelease(pFrameDescription);
+	}
+
+	SafeRelease(pColorFrame);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void MSKinectService::pollDepth()
+{
+	if (!m_pDepthFrameReader)
+	{
+		return;
+	}
+
+	IDepthFrame* pDepthFrame = NULL;
+
+	HRESULT hr = m_pDepthFrameReader->AcquireLatestFrame(&pDepthFrame);
+
+	if (SUCCEEDED(hr))
+	{
+		INT64 nTime = 0;
+		IFrameDescription* pFrameDescription = NULL;
+		int nWidth = 0;
+		int nHeight = 0;
+		USHORT nDepthMinReliableDistance = 0;
+		USHORT nDepthMaxDistance = 0;
+		UINT nBufferSize = 0;
+		UINT16 *pBuffer = NULL;
+
+		hr = pDepthFrame->get_RelativeTime(&nTime);
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pDepthFrame->get_FrameDescription(&pFrameDescription);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pFrameDescription->get_Width(&nWidth);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pFrameDescription->get_Height(&nHeight);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pDepthFrame->get_DepthMinReliableDistance(&nDepthMinReliableDistance);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			// In order to see the full range of depth (including the less reliable far field depth)
+			// we are setting nDepthMaxDistance to the extreme potential depth threshold
+			nDepthMaxDistance = USHRT_MAX;
+
+			// Note:  If you wish to filter by reliable depth distance, uncomment the following line.
+			if (depthReliableDataOnly)
+			{
+				hr = pDepthFrame->get_DepthMaxReliableDistance(&nDepthMaxDistance);
+			}
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			hr = pDepthFrame->AccessUnderlyingBuffer(&nBufferSize, &pBuffer);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			// ProcessDepth(nTime, pBuffer, nWidth, nHeight, nDepthMinReliableDistance, nDepthMaxDistance);
+
+			// Make sure we've received valid data
+			if (m_pDepthRGBX && pBuffer && (nWidth == cDepthWidth) && (nHeight == cDepthHeight))
+			{
+				RGBQUAD* pRGBX = m_pDepthRGBX;
+
+				// end pixel is start + width*height - 1
+				const UINT16* pBufferEnd = pBuffer + (nWidth * nHeight);
+
+				while (pBuffer < pBufferEnd)
+				{
+					USHORT depth = *pBuffer;
+
+					// To convert to a byte, we're discarding the most-significant
+					// rather than least-significant bits.
+					// We're preserving detail, although the intensity will "wrap."
+					// Values outside the reliable depth range are mapped to 0 (black).
+
+					// Note: Using conditionals in this loop could degrade performance.
+					// Consider using a lookup table instead when writing production code.
+					BYTE intensity;
+					if (highDetailDepth)
+					{
+						intensity = static_cast<BYTE>((depth >= nDepthMinReliableDistance) && (depth <= nDepthMaxDistance) ? (depth % 256) : 0);
+					}
+					else
+					{
+						intensity = static_cast<BYTE>(((depth >= nDepthMinReliableDistance) && depth < lowDetailMaxDistance) ? (256 * (1 - (depth / (float)lowDetailMaxDistance))) : 0);
+					}
+
+					pRGBX->rgbRed = intensity;
+					pRGBX->rgbGreen = intensity;
+					pRGBX->rgbBlue = intensity;
+
+					++pRGBX;
+					++pBuffer;
+				}
+
+				BYTE* pImage = reinterpret_cast<BYTE*>(m_pDepthRGBX);
+				unsigned long pImageSize = cDepthWidth * cDepthHeight * sizeof(RGBQUAD);
+
+				int nPackets = 32; // 512 * 424 = 217088 * 4 = 868352 / 32 = 27136 (max imageBuffer size = 41472)
+				int dataPacketSize = pImageSize / nPackets;
+
+				timeb tb;
+				ftime(&tb);
+				int timestamp = tb.millitm + (tb.time & 0xfffff) * 1000;
+
+				for (int i = 0; i < nPackets; i++)
+				{
+					memcpy(imageEventBuffer, &pImage[i * dataPacketSize], dataPacketSize);
+					Event* evt = mysInstance->writeHead();
+					evt->reset(Event::Update, Service::Image, timestamp);
+					evt->setPosition(cDepthWidth, cDepthHeight, 1); // Position: imageWidth, imageHeight, typeFlag (Color = 0, Depth = 1)
+					evt->setOrientation(i, nPackets, 0, 0);
+
+					evt->setExtraData(EventBase::ExtraDataByte, dataPacketSize, 1, imageEventBuffer);
+					mysInstance->unlockEvents();
+				}
+
+				if (debugInfo)
+				{
+					ofmsg("Kinect Depth Frame %1% Ready", %timestamp);
+				}
+			}
+			
+		}
+
+		SafeRelease(pFrameDescription);
+	}
+
+	SafeRelease(pDepthFrame);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +511,9 @@ void MSKinectService::dispose()
 
 	if (kinectSensor)
 	{
+		// done with color frame reader
+		SafeRelease(m_pColorFrameReader);
+
 		kinectSensor->Close();
 	}
 
@@ -225,22 +549,71 @@ HRESULT MSKinectService::InitializeDefaultKinect()
 
 		hr = kinectSensor->Open();
 
-		if (SUCCEEDED(hr))
+		if (enableKinectBody)
 		{
-		    hr = kinectSensor->get_CoordinateMapper(&m_pCoordinateMapper);
+			if (SUCCEEDED(hr))
+			{
+				hr = kinectSensor->get_CoordinateMapper(&m_pCoordinateMapper);
+			}
+
+			if (SUCCEEDED(hr))
+			{
+				hr = kinectSensor->get_BodyFrameSource(&pBodyFrameSource);
+			}
+
+			if (SUCCEEDED(hr))
+			{
+				hr = pBodyFrameSource->OpenReader(&bodyFrameReader);
+			}
+			SafeRelease(pBodyFrameSource);
+			omsg("MSKinect2Service: Body tracking started.");
 		}
 
-		if (SUCCEEDED(hr))
+		// Initialize the Kinect and get the color reader
+		IColorFrameSource* pColorFrameSource = NULL;
+
+		if (enableKinectColor)
 		{
-			hr = kinectSensor->get_BodyFrameSource(&pBodyFrameSource);
+			if (SUCCEEDED(hr))
+			{
+				hr = kinectSensor->get_ColorFrameSource(&pColorFrameSource);
+			}
+
+			if (SUCCEEDED(hr))
+			{
+				hr = pColorFrameSource->OpenReader(&m_pColorFrameReader);
+			}
+
+			SafeRelease(pColorFrameSource);
+
+			// create heap storage for color pixel data in RGBX format
+			m_pColorRGBX = new RGBQUAD[cColorWidth * cColorHeight];
+
+			omsg("MSKinect2Service: Color camera started.");
 		}
 
-		if (SUCCEEDED(hr))
-		{
-			hr = pBodyFrameSource->OpenReader(&bodyFrameReader);
-		}
+		// Initialize the Kinect and get the depth reader
+		IDepthFrameSource* pDepthFrameSource = NULL;
 
-		SafeRelease(pBodyFrameSource);
+		if (enableKinectDepth)
+		{
+			if (SUCCEEDED(hr))
+			{
+				hr = kinectSensor->get_DepthFrameSource(&pDepthFrameSource);
+			}
+
+			if (SUCCEEDED(hr))
+			{
+				hr = pDepthFrameSource->OpenReader(&m_pDepthFrameReader);
+			}
+
+			SafeRelease(pDepthFrameSource);
+
+			// create heap storage for depth pixel data in RGBX format
+			m_pDepthRGBX = new RGBQUAD[cDepthWidth * cDepthHeight];
+
+			omsg("MSKinect2Service: Depth camera started.");
+		}
 	}
 
 	if (!kinectSensor || FAILED(hr))
@@ -300,7 +673,7 @@ void MSKinectService::UnInitializeKinect( const OLECHAR *instanceName )
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MSKinectService::ProcessBody(INT64 nTime, int nBodyCount, IBody** ppBodies)
+void MSKinectService::ProcessBody(INT64 nTime, int nBodyCount, IBody** ppBodies, Vector4* floorClipPlane)
 {
 	HRESULT hr;
 
@@ -332,7 +705,7 @@ void MSKinectService::ProcessBody(INT64 nTime, int nBodyCount, IBody** ppBodies)
 						closestSkeletonDistance = headDistance;
 						closestBodyIndex = i;
 					}
-					GenerateMocapEvent( pBody, joints );
+					GenerateMocapEvent( pBody, joints, floorClipPlane );
 				}
 			}
 		}
@@ -395,7 +768,7 @@ void MSKinectService::ProcessBody(INT64 nTime, int nBodyCount, IBody** ppBodies)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MSKinectService::GenerateMocapEvent( IBody* body, Joint* joints )
+void MSKinectService::GenerateMocapEvent( IBody* body, Joint* joints, Vector4* floorClipPlane )
 {      
 	UINT64 skeletonID;
 	body->get_TrackingId(&skeletonID);
@@ -405,16 +778,18 @@ void MSKinectService::GenerateMocapEvent( IBody* body, Joint* joints )
 	Joint head = joints[JointType_Head];
 	headPos = Vector3f( head.Position.X, head.Position.Y, head.Position.Z );
 
-	if( debugInfo )
-		ofmsg( "Kinect Head %1% (%2%,%3%,%4%)",  %skeletonID %(headPos.x()) %(headPos.y()) %(headPos.z()) );
-
+	if (debugInfo)
+	{
+		ofmsg("Kinect Head %1% (%2%,%3%,%4%)", %skeletonID % (headPos.x()) % (headPos.y()) % (headPos.z()));
+		ofmsg("Floor Clip Plane (%1%,%2%,%3%,%4%)", % (floorClipPlane->x) % (floorClipPlane->y) % (floorClipPlane->z) % (floorClipPlane->w));
+	}
 	HandState leftHandState = HandState_Unknown;
 	HandState rightHandState = HandState_Unknown;
 	body->get_HandLeftState(&leftHandState);
 	body->get_HandRightState(&rightHandState);
 
 	Event* evt = mysInstance->writeHead();
-	evt->reset(Event::Update, Service::Mocap, skeletonID, 0);
+	evt->reset(Event::Update, Service::Mocap, skeletonID, serviceId);
 	
 	Joint joint = joints[JointType_Head];
 	Vector3f jointPos = Vector3f( head.Position.X, head.Position.Y, head.Position.Z );
@@ -424,11 +799,51 @@ void MSKinectService::GenerateMocapEvent( IBody* body, Joint* joints )
 	pos[2] = jointPos.z();
 	evt->setPosition( pos );
 
-	// Hand state
-	evt->setOrientation(leftHandState, rightHandState, 0, 0);
+	// Floor clip plane
+	// x, y, z, unit vector indicating normal of plane
+	// w distance from the plane to origin in meters
+	evt->setOrientation(floorClipPlane->w, floorClipPlane->x, floorClipPlane->y, floorClipPlane->z);
 
 	uint flags = 0;
-	
+	uint userFlag = 1 << 18;
+	switch (leftHandState)
+	{
+		case(HandState_Unknown):
+			flags |= userFlag << 1;
+			break;
+		case(HandState_NotTracked):
+			flags |= userFlag << 2;
+			break;
+		case(HandState_Open):
+			flags |= userFlag << 3;
+			break;
+		case(HandState_Closed):
+			flags |= userFlag << 4;
+			break;
+		case(HandState_Lasso):
+			flags |= userFlag << 5;
+			break;
+	}
+	switch (rightHandState)
+	{
+	case(HandState_Unknown):
+		flags |= userFlag << 6;
+		break;
+	case(HandState_NotTracked):
+		flags |= userFlag << 7;
+		break;
+	case(HandState_Open):
+		flags |= userFlag << 8;
+		break;
+	case(HandState_Closed):
+		flags |= userFlag << 9;
+		break;
+	case(HandState_Lasso):
+		flags |= userFlag << 10;
+		break;
+	}
+	evt->setFlags(flags);
+
 	evt->setExtraDataType(Event::ExtraDataVector3Array);
 
 	SkeletonPositionToEvent( joints, evt, Event::OMICRON_SKEL_HIP_CENTER, JointType_SpineBase );
@@ -534,99 +949,105 @@ HRESULT MSKinectService::InitializeAudioStream()
 {
 	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-    hr = S_OK;
-    IAudioSource* pAudioSource = NULL;
-    IAudioBeamList* pAudioBeamList = NULL;
+	hr = S_OK;
 
-    hr = GetDefaultKinectSensor(&kinectSensor);
+	IAudioSource* pAudioSource = NULL;
+	IAudioBeamList* pAudioBeamList = NULL;
 
-    if (FAILED(hr))
-    {
-       omsg("MSKinect2Service: Failed getting default sensor!");
-       return hr;
-    }
+	hr = GetDefaultKinectSensor(&kinectSensor);
 
-    hr = kinectSensor->Open();
+	if (FAILED(hr))
+	{
+		omsg("MSKinect2Service: Failed getting default sensor!");
+		return hr;
+	}
 
-    if (SUCCEEDED(hr))
-    {
-        hr = kinectSensor->get_AudioSource(&pAudioSource);
-    }
+	hr = kinectSensor->Open();
 
-    if (SUCCEEDED(hr))
-    {
-        hr = pAudioSource->get_AudioBeams(&pAudioBeamList);
-    }
+	if (SUCCEEDED(hr))
+	{
+		hr = kinectSensor->get_AudioSource(&pAudioSource);
+	}
 
-    if (SUCCEEDED(hr))
-    {        
-        hr = pAudioBeamList->OpenAudioBeam(0, &m_pAudioBeam);
-    }
+	if (SUCCEEDED(hr))
+	{
+		hr = pAudioSource->get_AudioBeams(&pAudioBeamList);
+	}
 
-    if (SUCCEEDED(hr))
-    {        
-        hr = m_pAudioBeam->OpenInputStream(&m_pAudioStream);
-        m_p16BitAudioStream = new KinectAudioStream(m_pAudioStream);
-    }
+	if (SUCCEEDED(hr))
+	{
+		hr = pAudioBeamList->OpenAudioBeam(0, &m_pAudioBeam);
+	}
 
-    if (FAILED(hr))
-    {
-        omsg("MSKinect2Service: Failed opening an audio stream!");
-        return hr;
-    }
+	if (SUCCEEDED(hr))
+	{
+		hr = m_pAudioBeam->OpenInputStream(&m_pAudioStream);
+		m_p16BitAudioStream = new KinectAudioStream(m_pAudioStream);
+	}
 
-    hr = CoCreateInstance(CLSID_SpStream, NULL, CLSCTX_INPROC_SERVER, __uuidof(ISpStream), (void**)&m_pSpeechStream);
+	if (SUCCEEDED(hr))
+	{
+		hr = m_pAudioBeam->OpenInputStream(&m_pAudioStream2);
+	}
 
-    // Audio Format for Speech Processing
-    WORD AudioFormat = WAVE_FORMAT_PCM;
-    WORD AudioChannels = 1;
-    DWORD AudioSamplesPerSecond = 16000;
-    DWORD AudioAverageBytesPerSecond = 32000;
-    WORD AudioBlockAlign = 2;
-    WORD AudioBitsPerSample = 16;
+	if (FAILED(hr))
+	{
+		omsg("MSKinect2Service: Failed opening an audio stream!");
+		return hr;
+	}
 
-    WAVEFORMATEX wfxOut = {AudioFormat, AudioChannels, AudioSamplesPerSecond, AudioAverageBytesPerSecond, AudioBlockAlign, AudioBitsPerSample, 0};
+	hr = CoCreateInstance(CLSID_SpStream, NULL, CLSCTX_INPROC_SERVER, __uuidof(ISpStream), (void**)&m_pSpeechStream);
 
-    if (SUCCEEDED(hr))
-    {
+	// Audio Format for Speech Processing
+	WORD AudioFormat = WAVE_FORMAT_PCM;
+	WORD AudioChannels = 1;
+	DWORD AudioSamplesPerSecond = 16000;
+	DWORD AudioAverageBytesPerSecond = 32000;
+	WORD AudioBlockAlign = 2;
+	WORD AudioBitsPerSample = 16;
 
-        m_p16BitAudioStream->SetSpeechState(true);        
-        hr = m_pSpeechStream->SetBaseStream(m_p16BitAudioStream, SPDFID_WaveFormatEx, &wfxOut);
-    }
+	WAVEFORMATEX wfxOut = { AudioFormat, AudioChannels, AudioSamplesPerSecond, AudioAverageBytesPerSecond, AudioBlockAlign, AudioBitsPerSample, 0 };
 
-    if (SUCCEEDED(hr))
-    {
-        hr = CreateSpeechRecognizer();
-    }
+	if (SUCCEEDED(hr))
+	{
 
-    if (FAILED(hr))
-    {
-        omsg("MSKinect2Service: Could not create speech recognizer. Please ensure that Microsoft Speech SDK and other sample requirements are installed.");
-        return hr;
-    }
+		m_p16BitAudioStream->SetSpeechState(true);
+		hr = m_pSpeechStream->SetBaseStream(m_p16BitAudioStream, SPDFID_WaveFormatEx, &wfxOut);
+	}
 
-    hr = LoadSpeechGrammar();
+	if (SUCCEEDED(hr))
+	{
+		hr = CreateSpeechRecognizer();
+	}
 
-    if (FAILED(hr))
-    {
-        omsg("MSKinect2Service: Could not load speech grammar. Please ensure that grammar configuration file was properly deployed.");
-        return hr;
-    }
+	if (FAILED(hr))
+	{
+		omsg("MSKinect2Service: Could not create speech recognizer. Please ensure that Microsoft Speech SDK and other sample requirements are installed.");
+		return hr;
+	}
 
-    hr = StartSpeechRecognition();
+	if (enableKinectSpeechGrammar)
+	{
+		hr = LoadSpeechGrammar();
+		hr = StartSpeechRecognition();
 
-    if (FAILED(hr))
-    {
-        omsg("MSKinect2Service: Could not start recognizing speech.");
-        return hr;
-    }
+		if (FAILED(hr))
+		{
+			omsg("MSKinect2Service: Could not start recognizing speech.");
+			return hr;
+		}
 
-	omsg("MSKinect2Service: Speech recognition started.");
-    m_bSpeechActive = true;
+		omsg("MSKinect2Service: Speech recognition started.");
+		m_bSpeechActive = true;
+	}
+
+	if (enableKinectSpeechDictation)
+	{
+		hr = LoadSpeechDictation();
+	}
 
     SafeRelease(pAudioBeamList);
     SafeRelease(pAudioSource);
-
     return hr;
 }
 
@@ -653,6 +1074,8 @@ HRESULT MSKinectService::CreateSpeechRecognizer()
         if (SUCCEEDED(hr))
         {
             m_pSpeechRecognizer->SetRecognizer(pEngineToken);
+
+			// If this fails, make sure both the Speech 11 SDK and redist runtime is installed
             hr = m_pSpeechRecognizer->CreateRecoContext(&m_pSpeechContext);
 
             // For long recognition sessions (a few hours or more), it may be beneficial to turn off adaptation of the acoustic model. 
@@ -688,7 +1111,74 @@ HRESULT MSKinectService::LoadSpeechGrammar()
         hr = m_pSpeechGrammar->LoadCmdFromFile(grammarStr, SPLO_STATIC);
     }
 
+	if (FAILED(hr))
+	{
+		omsg("MSKinect2Service: Could not load speech grammar. Please ensure that grammar configuration file was properly deployed.");
+	}
     return hr;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary>
+/// Load speech recognition dictation into recognizer.
+/// </summary>
+/// <returns>
+/// <para>S_OK on success, otherwise failure code.</para>
+/// </returns>
+HRESULT MSKinectService::LoadSpeechDictation()
+{
+	HRESULT hr = S_OK;
+	CComPtr<ISpRecognizer> cpRecoEngine;
+	hr = cpRecoEngine.CoCreateInstance(CLSID_SpInprocRecognizer);
+
+	if (SUCCEEDED(hr))
+	{
+		hr = cpRecoEngine->CreateRecoContext(&m_pSpeechDictationContext);
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		// This specifies which of the recognition events are going to trigger notifications.
+		// Here, all we are interested in is the beginning and ends of sounds, as well as
+		// when the engine has recognized something
+		const ULONGLONG ullInterest = SPFEI(SPEI_RECOGNITION);
+		m_pSpeechDictationContext->SetInterest(ullInterest, ullInterest);
+	}
+
+	// create default audio object
+	CComPtr<ISpAudio> cpAudio;
+	SpCreateDefaultObjectFromCategoryId(SPCAT_AUDIOIN, &cpAudio);
+
+	// set the input for the engine
+	cpRecoEngine->SetInput(cpAudio, TRUE);
+	hr = cpRecoEngine->SetRecoState(SPRST_ACTIVE);
+
+	if (SUCCEEDED(hr))
+	{
+		// Specifies that the grammar we want is a dictation grammar.
+		// Initializes the grammar (m_cpDictationGrammar)
+		hr = m_pSpeechDictationContext->CreateGrammar(0, &m_cpDictationGrammar);
+	}
+	if (SUCCEEDED(hr))
+	{
+		hr = m_cpDictationGrammar->LoadDictation(NULL, SPLO_STATIC);
+	}
+	if (SUCCEEDED(hr))
+	{
+		hr = m_cpDictationGrammar->SetDictationState(SPRS_ACTIVE);
+	}
+	if (FAILED(hr))
+	{
+		omsg("MSKinect2Service: Could not load dictation grammar.");
+		m_cpDictationGrammar->Release();
+	}
+	else if (SUCCEEDED(hr))
+	{
+		omsg("MSKinect2Service: Dictation grammar loaded.");
+	}
+
+	
+	return hr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -744,7 +1234,10 @@ void MSKinectService::ProcessSpeech()
     ULONG fetched = 0;
     HRESULT hr = S_OK;
 
+	if (m_pSpeechContext == NULL)
+		return;
     m_pSpeechContext->GetEvents(1, &curEvent, &fetched);
+
     while (fetched > 0)
     {
         switch (curEvent.eEventId)
@@ -759,46 +1252,225 @@ void MSKinectService::ProcessSpeech()
                 hr = result->GetPhrase(&pPhrase);
                 if (SUCCEEDED(hr))
                 {
-                    if ((pPhrase->pProperties != NULL) && (pPhrase->pProperties->pFirstChild != NULL))
-                    {
-                        const SPPHRASEPROPERTY* pSemanticTag = pPhrase->pProperties->pFirstChild;
+					if ((pPhrase->pProperties != NULL))
+					{
+						LPCWSTR speechWString;
+						const SPPHRASEPROPERTY* pSemanticTag;
+						float speechStringConfidence = 0;
+						String speechString = "";
 
-						LPCWSTR speechWString = pSemanticTag->pszValue;
+						if (pPhrase->pProperties->pFirstChild != NULL)
+						{
+							pSemanticTag = pPhrase->pProperties->pFirstChild;
+							speechWString = pSemanticTag->pszValue;
+							speechStringConfidence = pSemanticTag->SREngineConfidence;
 
-						// Convert from LPCWSTR to String
-						std::wstring wstr = speechWString; 
-						String speechString; 
-						speechString.resize( wstr.size() ); //make enough room in copy for the string 
-						std::copy(wstr.begin(),wstr.end(), speechString.begin()); //copy it
+							speechString += WStringToString(speechWString);
 
-						float speechStringConfidence = pSemanticTag->SREngineConfidence;
+							while (pSemanticTag->pNextSibling != NULL)
+							{
+								pSemanticTag = pSemanticTag->pNextSibling;
 
-						ofmsg("MSKinect2Service: Speech recognized '%1%' confidence: %2%", %speechString %speechStringConfidence);
+								speechWString = pSemanticTag->pszValue;
+								speechStringConfidence = pSemanticTag->SREngineConfidence;
 
-						GenerateSpeechEvent( speechString, speechStringConfidence );
+								speechString += " " + WStringToString(speechWString);
+							}
+						}
+						else
+						{
+							speechWString = pPhrase->pProperties->pszValue;
+							speechStringConfidence = pPhrase->pProperties->SREngineConfidence;
+
+							speechString += WStringToString(speechWString);
+						}
+
+						float fBeamAngle = 0.f;
+						float fBeamAngleConfidence = 0.f;
+
+						// Get most recent audio beam angle and confidence
+						m_pAudioBeam->get_BeamAngle(&fBeamAngle);
+						m_pAudioBeam->get_BeamAngleConfidence(&fBeamAngleConfidence);
+
+						// Convert to degrees
+						fBeamAngle = fBeamAngle * 180.0f / static_cast<float>(M_PI);
+
+						ofmsg("MSKinect2Service: Speech recognized '%1%' confidence: %2% angle: %3% confidence: %4%", %speechString %speechStringConfidence %fBeamAngle %fBeamAngleConfidence);
+
+						GenerateSpeechEvent( speechString, speechStringConfidence, fBeamAngle, fBeamAngleConfidence);
                     }
                     ::CoTaskMemFree(pPhrase);
                 }
             }
             break;
         }
-
         m_pSpeechContext->GetEvents(1, &curEvent, &fetched);
     }
-
     return;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void MSKinectService::GenerateSpeechEvent( String speechString, float speechConfidence )
+/// <summary>
+/// Process audio (Ampliture and direction)
+/// </summary>
+void MSKinectService::ProcessAudio()
+{
+	float audioBuffer[cAudioBufferLength];
+	DWORD cbRead = 0;
+
+	// S_OK will be returned when cbRead == sizeof(audioBuffer).
+	// E_PENDING will be returned when cbRead < sizeof(audioBuffer).
+	// For both return codes we will continue to process the audio written into the buffer.
+	HRESULT hr = m_pAudioStream2->Read((void *)audioBuffer, sizeof(audioBuffer), &cbRead);
+
+	if (FAILED(hr) && hr != E_PENDING)
+	{
+		omsg("MSKinect2Service: Failed to read from audio stream.");
+	}
+	else if (cbRead > 0)
+	{
+		DWORD nSampleCount = cbRead / sizeof(float);
+		float fBeamAngle = 0.f;
+		float fBeamAngleConfidence = 0.f;
+
+		// Get most recent audio beam angle and confidence
+		m_pAudioBeam->get_BeamAngle(&fBeamAngle);
+		m_pAudioBeam->get_BeamAngleConfidence(&fBeamAngleConfidence);
+
+		// Convert to degrees
+		fBeamAngle = fBeamAngle * 180.0f / static_cast<float>(M_PI);
+		float fEnergy = cMinEnergy;
+		for (UINT i = 0; i < nSampleCount; i++)
+		{
+			// Compute the sum of squares of audio samples that will get accumulated
+			// into a single energy value.
+			m_fAccumulatedSquareSum += audioBuffer[i] * audioBuffer[i];
+			++m_nAccumulatedSampleCount;
+
+			if (m_nAccumulatedSampleCount < cAudioSamplesPerEnergySample)
+			{
+				continue;
+			}
+
+			// Each energy value will represent the logarithm of the mean of the
+			// sum of squares of a group of audio samples.
+			float fMeanSquare = m_fAccumulatedSquareSum / cAudioSamplesPerEnergySample;
+
+			if (fMeanSquare > 1.0f)
+			{
+				// A loud audio source right next to the sensor may result in mean square values
+				// greater than 1.0. Cap it at 1.0f for display purposes.
+				fMeanSquare = 1.0f;
+			}
+			
+			// Calculate energy from audio
+			if (fMeanSquare > 0.f)
+			{
+				// Convert to dB
+				fEnergy = 10.0f*log10(fMeanSquare);
+			}
+		}
+		if (fBeamAngleConfidence >= beamConfidenceThreshold)
+		{
+			// ofmsg("MSKinect2Service: Audio at %1% deg. (%2%) energy: %3% db", %fEnergy %fBeamAngle %fBeamAngleConfidence);
+			GenerateAudioEvent(fEnergy, fBeamAngle, fBeamAngleConfidence);
+		}
+
+		m_fAccumulatedSquareSum = 0.f;
+		m_nAccumulatedSampleCount = 0;
+	}		
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary>
+/// Convert from LPCWSTR to String.
+/// </summary>
+String MSKinectService::WStringToString(LPCWSTR speechWString)
+{
+	String speechString = "";
+	// Convert from LPCWSTR to String
+	std::wstring wstr = speechWString;
+
+	speechString.resize(wstr.size()); //make enough room in copy for the string 
+	std::copy(wstr.begin(), wstr.end(), speechString.begin()); //copy it
+
+	return speechString;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// <summary>
+/// Process recently triggered speech recognition events.
+/// </summary>
+void MSKinectService::ProcessSpeechDictation()
+{
+	SPEVENT curEvent = { SPEI_UNDEFINED, SPET_LPARAM_IS_UNDEFINED, 0, 0, 0, 0 };
+	ULONG fetched = 0;
+	HRESULT hr = S_OK;
+
+	m_pSpeechDictationContext->GetEvents(1, &curEvent, &fetched);
+	while (fetched > 0)
+	{
+		switch (curEvent.eEventId)
+		{
+		case SPEI_RECOGNITION:
+			if (SPET_LPARAM_IS_OBJECT == curEvent.elParamType)
+			{
+				// this is an ISpRecoResult
+				ISpRecoResult* result = reinterpret_cast<ISpRecoResult*>(curEvent.lParam);
+				SPPHRASE* pPhrase = NULL;
+
+				LPWSTR speechWString = L"";
+
+				hr = result->GetText(SP_GETWHOLEPHRASE, SP_GETWHOLEPHRASE, TRUE, &speechWString, NULL);
+				if (SUCCEEDED(hr))
+				{
+					std::wstring wstr = speechWString;
+					String speechString;
+					speechString.resize(wstr.size()); //make enough room in copy for the string 
+					std::copy(wstr.begin(), wstr.end(), speechString.begin()); //copy it
+
+					float fBeamAngle = 0.f;
+					float fBeamAngleConfidence = 0.f;
+
+					// Get most recent audio beam angle and confidence
+					m_pAudioBeam->get_BeamAngle(&fBeamAngle);
+					m_pAudioBeam->get_BeamAngleConfidence(&fBeamAngleConfidence);
+
+					// Convert to degrees
+					fBeamAngle = fBeamAngle * 180.0f / static_cast<float>(M_PI);
+
+					ofmsg("MSKinect2Service: Dictation speech recognized '%1%'", %speechString);
+					GenerateSpeechEvent(speechString, 1.0f, fBeamAngle, fBeamAngleConfidence);
+				}
+			}
+			break;
+		}
+
+		m_pSpeechDictationContext->GetEvents(1, &curEvent, &fetched);
+	}
+	return;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void MSKinectService::GenerateSpeechEvent( String speechString, float speechConfidence, float beamAngle, float angleConfidence )
 {
 	Event* evt = mysInstance->writeHead();
-	evt->reset(Event::Update, Service::Speech, 0, 0);
+	evt->reset(Event::Select, Service::Speech, 0, serviceId);
 
-	evt->setPosition( speechConfidence, 0 );
+	evt->setPosition( speechConfidence, beamAngle, angleConfidence);
 	evt->setExtraDataType(Event::ExtraDataString);
 
 	evt->setExtraDataString(speechString);
+
+	mysInstance->unlockEvents();
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void MSKinectService::GenerateAudioEvent(float energy, float beamAngle, float angleConfidence)
+{
+	Event* evt = mysInstance->writeHead();
+	evt->reset(Event::Update, Service::Audio, 0, serviceId);
+	evt->setPosition(energy, beamAngle, angleConfidence);
 
 	mysInstance->unlockEvents();
 }
