@@ -93,7 +93,7 @@
 #define SOCKET int
 #define PRINT_SOCKET_ERROR(msg) printf(msg" - socket error: %s\n", strerror(errno));
 #define SOCKET_ERROR            (-1)
-#define INVALID_SOCKET            (0)
+// #define INVALID_SOCKET            (0) // already defined as -1 in vrn.Shared.h
 #endif
 
 enum DataMode { data_omicron, data_omicron_legacy, data_omicron_in, data_tactile, data_omicronV2, data_omicronV3 };
