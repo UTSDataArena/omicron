@@ -290,27 +290,36 @@ else() # linux support for vrpn controllers (3dConnexion space navigator and xbo
     if(OMICRON_USE_VRPN)
 
         set( srcs	 ${srcs} omicron/VRPNService.cpp
+                    #  ${srcs} omicron/VRPNDevice.cpp
                      ${srcs} omicron/VRPNDeviceLinux.cpp
                      ${srcs} omicron/JoystickService.cpp
                      ${srcs} omicron/SpaceNavigatorService.cpp
             )
         # using VRPN_DIR
-        include_directories( ${VRPN_DIR}/include )
+        # include_directories( ${VRPN_DIR}/include )
         set( headers ${headers} ${CMAKE_SOURCE_DIR}/include/omicron/VRPNService.h
                      ${CMAKE_SOURCE_DIR}/include/omicron/VRPNDeviceLinux.h
-                     ${VRPN_DIR}/include/vrpn_BaseClass.h
-                     ${VRPN_DIR}/include/vrpn_Configure.h
-                     ${VRPN_DIR}/include/vrpn_Connection.h
-                     ${VRPN_DIR}/include/vrpn_Shared.h
-                     ${VRPN_DIR}/include/vrpn_Tracker.h
-                     ${VRPN_DIR}/include/vrpn_Types.h
-                     ${VRPN_DIR}/include/vrpn_HumanInterface.h
-                     ${VRPN_DIR}/include/vrpn_3DConnexion.h
-                     ${VRPN_DIR}/include/vrpn_Dial.h
-                     ${VRPN_DIR}/include/vrpn_Microsoft_Controller_Raw.h
+                    #  ${VRPN_DIR}/include/vrpn_BaseClass.h
+                    #  ${VRPN_DIR}/include/vrpn_Configure.h
+                    #  ${VRPN_DIR}/include/vrpn_Connection.h
+                    #  ${VRPN_DIR}/include/vrpn_Shared.h
+                    #  ${VRPN_DIR}/include/vrpn_Tracker.h
+                    #  ${VRPN_DIR}/include/vrpn_Types.h
+                    #  ${VRPN_DIR}/include/vrpn_HumanInterface.h
+                    #  ${VRPN_DIR}/include/vrpn_3DConnexion.h
+                    #  ${VRPN_DIR}/include/vrpn_Dial.h
+                    #  ${VRPN_DIR}/include/vrpn_Microsoft_Controller_Raw.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_BaseClass.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Configure.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Connection.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Joylin.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Shared.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Tracker.h
+                     ${CMAKE_SOURCE_DIR}/include/omicron/vrpn/vrpn_Types.h
                      ${CMAKE_SOURCE_DIR}/include/omicron/JoystickService.h
                      ${CMAKE_SOURCE_DIR}/include/omicron/SpaceNavigatorService.h
         )
+        include_directories( ${CMAKE_SOURCE_DIR}/include/omicron/vrpn )
     endif()
 endif()
 
@@ -456,20 +465,28 @@ if(OMICRON_USE_VRPN)
         target_link_libraries( omicron optimized ${EXT_LIB_DIR}/vrpn.lib)
         target_link_libraries( omicron ${EXT_LIB_DIR}/quat.lib)
     else(WIN32) # linux
-        add_library( vrpn SHARED IMPORTED)
-        set_target_properties( vrpn PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpn.a )
-        add_library( vrpnserver SHARED IMPORTED )
-        set_target_properties( vrpnserver PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpnserver.a )
+        # external vrpn
+        # add_library( vrpn SHARED IMPORTED)
+        # set_target_properties( vrpn PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpn.a )
+        # add_library( vrpnserver SHARED IMPORTED )
+        # set_target_properties( vrpnserver PROPERTIES IMPORTED_LOCATION ${VRPN_DIR}/lib/libvrpnserver.a )
+        #internal vrpn
+        target_link_libraries( omicron 
+                               ${EXT_LIB_DIR}/libvrpn.a
+                               ${EXT_LIB_DIR}/libvrpnserver.a
+                               ${EXT_LIB_DIR}/libquat.a
+        )
+
 # 		## checking LINK_DIRECTORIES
 # 		get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY LINK_DIRECTORIES)
 # 		foreach(dir ${dirs})
 # 		message(STATUS "link dir='${dir}'")
 # 		endforeach()
-        target_link_libraries( omicron
-                               usb # added for vrpn
-                               vrpn
-                               vrpnserver
-        )
+        # target_link_libraries( omicron
+        #                        usb # added for vrpn
+        #                        vrpn
+        #                        vrpnserver
+        # )
     endif(WIN32)
 endif(OMICRON_USE_VRPN)
 

@@ -41,8 +41,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <vrpn_tracker.h> // Remember to set Linker directories and Input/Dependencies to vrpn.lib
-#include <vrpn_Button.h>
+#include "omicron/vrpn/vrpn_Tracker.h" // Remember to set Linker directories and Input/Dependencies to vrpn.lib
+#include "omicron/vrpn/vrpn_Button.h"
 
 namespace omicron
 {
