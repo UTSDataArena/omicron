@@ -581,6 +581,8 @@ bool InputServer::handleTacTileEvent(const Event& evt)
 			sprintf(floatChar, "%d", 2);
 			strcat(tacTilePacket, floatChar);
 			break;
+        default:
+            break;
 		}
 
 		// Intensity (Not really used, just to match the old message format
@@ -591,6 +593,8 @@ bool InputServer::handleTacTileEvent(const Event& evt)
 		strcat(tacTilePacket, " "); // Spacer
 
 		return true;
+    default:
+        break;
 	}
 	return false;
 }
