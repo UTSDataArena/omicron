@@ -1,13 +1,13 @@
 /******************************************************************************
  * THE OMICRON PROJECT
  *-----------------------------------------------------------------------------
- * Copyright 2010-2014		Electronic Visualization Laboratory, 
+ * Copyright 2010-2017		Electronic Visualization Laboratory, 
  *							University of Illinois at Chicago
  * Authors:										
  *  Arthur Nishimoto	    anishimoto42@gmail.com
  *  Alessandro Febretti		febret@gmail.com
  *-----------------------------------------------------------------------------
- * Copyright (c) 2010-2014, Electronic Visualization Laboratory,  
+ * Copyright (c) 2010-2017, Electronic Visualization Laboratory,  
  * University of Illinois at Chicago
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, 
@@ -52,8 +52,8 @@ typedef	struct {
 } vrpn_TRACKERCB; */
 void VRPN_CALLBACK handle_tracker(void *userData, const vrpn_TRACKERCB t)
 {
-    VRPNStruct* vs = ((VRPNStruct*)userData);
-    VRPNService* vrpnService = vs->vrnpService;
+	VRPNStruct* vs = ((VRPNStruct*)userData);
+	VRPNService* vrpnService = vs->vrnpService;
 
     vrpnService->generateTrackerEvent(t, vs->object_id, vs->userId, vs->jointId, vs->generate2dCoordinates);
 }
@@ -143,6 +143,23 @@ void VRPNService::setup(Setting& settings)
                 trackerInfo.jointId = -1;
             }
 
+			if (str.exists("sensorId"))
+			{
+				unsigned int uid = (unsigned int)str["sensorId"];
+				trackerInfo.sensorId = (unsigned short)uid;
+				ofmsg("Tracker %1% sensor Id %2%", %trackerInfo.object_name %uid);
+			}
+			else if (str.exists("sensorID"))
+			{
+				unsigned int uid = (unsigned int)str["sensorID"];
+				trackerInfo.sensorId = (unsigned short)uid;
+				ofmsg("Tracker %1% sensor ID %2%", %trackerInfo.object_name %uid);
+			}
+			else
+			{
+				trackerInfo.sensorId = -1;
+			}
+
 			if(str.exists("objectType"))
             {
                 trackerInfo.object_type = (const char*)str["objectType"];
@@ -156,10 +173,26 @@ void VRPNService::setup(Setting& settings)
 			{
 				trackerInfo.generate2dCoordinates = Config::getBoolValue("generate2dCoordinates", str, "false");
 			}
+			if (str.exists("objectID"))
+			{
+				trackerInfo.trackableId = str["objectID"];
+			}
+			else if (str.exists("objectId"))
+			{
+				trackerInfo.trackableId = str["objectId"];
+			}
+			else
+			{
+				trackerInfo.trackableId = 0;
+			}
 
-            trackerInfo.trackableId = str["objectID"];
-            trackerNames.push_back(trackerInfo);
+			trackerInfo.lastUpdateTime = 0;
 
+			trackerNames[trackerInfo.trackableId] = (trackerInfo);
+			if(trackerInfo.trackableId == 5)
+			{
+
+			}
         }
 
         myUpdateInterval = 0.0f;
@@ -181,33 +214,44 @@ void VRPNService::initialize()
     mysInstance = this;
 
 
-    for(int i = 0; i < trackerNames.size(); i++)
-    {
-        TrackerInfo& t = trackerNames[i];
-        char trackerName[256];
-        strcpy(trackerName,t.object_name);
-        strcat(trackerName,"@");
-        strcat(trackerName,t.server_ip);
-        ofmsg("Added %1%" , %trackerName);
+	for (std::map<int, TrackerInfo>::iterator it = trackerNames.begin(); it != trackerNames.end(); ++it)
+	{
+		TrackerInfo& t = it->second;
+		char trackerName[256];
+		strcpy(trackerName, t.object_name);
+		strcat(trackerName, "@");
+		strcat(trackerName, t.server_ip);
+		ofmsg("Added %1%", %trackerName);
 
-        // Open the tracker: '[object name]@[tracker IP]'
-        vrpn_Tracker_Remote *tkr = new vrpn_Tracker_Remote(trackerName);
+		// Open the tracker: '[object name]@[tracker IP]'
+		vrpn_Tracker_Remote *tkr = new vrpn_Tracker_Remote(trackerName);
 		vrpn_Button_Remote* vrpnButton = new vrpn_Button_Remote(trackerName);
 
-        VRPNStruct* vrpnData = new VRPNStruct();
-        vrpnData->object_name = t.object_name;
+		VRPNStruct* vrpnData = new VRPNStruct();
+		vrpnData->object_name = t.object_name;
 		vrpnData->object_type = t.object_type;
-        vrpnData->object_id = t.trackableId;
-        vrpnData->userId = t.userId;
-        vrpnData->jointId = t.jointId;
-        vrpnData->vrnpService = this;
+		vrpnData->object_id = t.trackableId;
+		vrpnData->userId = t.userId;
+		vrpnData->jointId = t.jointId;
+		vrpnData->vrnpService = this;
+		vrpnData->sensorId = t.sensorId;
+
+		// Set up the callback handler
+		if (t.sensorId == -1)
+		{
+			tkr->register_change_handler((void*)vrpnData, handle_tracker);
+		}
+		else
+		{
+			tkr->register_change_handler((void*)vrpnData, handle_tracker, t.sensorId);
+		}
 
 		vrpnData->generate2dCoordinates = t.generate2dCoordinates;
 
         // Set up the callback handler
         tkr->register_change_handler((void*)vrpnData, handle_tracker);
-		vrpnButton->register_change_handler((void*)vrpnData, handle_button);
 
+		vrpnButton->register_change_handler((void*)vrpnData, handle_button);
         // Add to tracker remote list
         trackerRemotes.push_back(tkr);
     }
@@ -216,10 +260,9 @@ void VRPNService::initialize()
 ///////////////////////////////////////////////////////////////////////////////
 void VRPNService::poll() 
 {
-    static float lastt;
-    float curt = (float)((double)clock() / CLOCKS_PER_SEC);
-    if(curt - lastt > myUpdateInterval)
-    {
+    //float curt = (float)((double)clock() / CLOCKS_PER_SEC);
+    //if(curt - lastt > myUpdateInterval)
+    //{
         for(int i = 0; i < trackerRemotes.size(); i++)
         {
             vrpn_Tracker_Remote *tkr = trackerRemotes[i];
@@ -228,8 +271,8 @@ void VRPNService::poll()
                 // as needed
             tkr->mainloop();
         }
-        lastt = curt;
-    }
+        //lastt = curt;
+    //}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -243,52 +286,62 @@ void VRPNService::generateTrackerEvent(vrpn_TRACKERCB t, int id, unsigned short 
 	bool generate2dCoordinates
 )
 {
-     //static float lastt;
-     //float curt = (float)((double)clock() / CLOCKS_PER_SEC);
-     //if(curt - lastt > mysInstance->myUpdateInterval)
-     //{
-         mysInstance->lockEvents();
-         Event* evt = mysInstance->writeHead();
-         evt->reset(Event::Update, Service::Mocap, id, getServiceId(), userId);
-         evt->setPosition(t.pos[0], t.pos[1], t.pos[2]);
+    // Get last event timestamp of trackable
+	TrackerInfo trackerInfo = trackerNames[id];
+	float lastt = trackerInfo.lastUpdateTime;
+
+    float curt = (float)((double)clock() / CLOCKS_PER_SEC);
+    if(curt - lastt > mysInstance->myUpdateInterval)
+    {
+		if (isDebugEnabled())
+		{
+			ofmsg("VRPNService: Tracker ID %1% at pos: %2% %3% %4%", %id %t.pos[0] %t.pos[1] %t.pos[2]);
+		}
+        mysInstance->lockEvents();
+        Event* evt = mysInstance->writeHead();
+        evt->reset(Event::Update, Service::Mocap, id, getServiceId(), userId);
+        evt->setPosition(t.pos[0], t.pos[1], t.pos[2]);
 
         // //double euler[3];
         // //q_to_euler(euler, t.quat);
-         evt->setOrientation(t.quat[3], t.quat[0], t.quat[1], t.quat[2]);
+        evt->setOrientation(t.quat[3], t.quat[0], t.quat[1], t.quat[2]);
 
-         if(jointId != -1)
-         {
-			 evt->setExtraDataType(Event::ExtraDataIntArray);
-             evt->setExtraDataInt(0, jointId);
-         }
+        if(jointId != -1)
+        {
+			evt->setExtraDataType(Event::ExtraDataIntArray);
+            evt->setExtraDataInt(0, jointId);
+        }
 
-         // do some coordinate generation based on a cylindrical screen
-         if (generate2dCoordinates)
-		 {
-			 int index = 1;
-			 if (jointId == -1) {
+        mysInstance->unlockEvents();
+
+        // do some coordinate generation based on a cylindrical screen
+        if (generate2dCoordinates)
+		{
+			int index = 1;
+			if (jointId == -1) {
 				index = 0;
 				evt->setExtraDataType(Event::ExtraDataIntArray);
-			 }
+			}
 
-			 float angle = atan2(t.pos[0], t.pos[2]);
-			 float x = width * 0.5 * (1.0 - (angle / 3.14159265));
+			float angle = atan2(t.pos[0], t.pos[2]);
+			float x = width * 0.5 * (1.0 - (angle / 3.14159265));
 
-			 if (t.pos[1] > 1.5) {
-				 t.pos[1] = 1.5;
-			 }
-			 if (t.pos[1]  > 1.0) {
-				 float y = height * -(2.0 * (t.pos[1] - 1.5));
+			if (t.pos[1] > 1.5) {
+				t.pos[1] = 1.5;
+			}
+			if (t.pos[1]  > 1.0) {
+				float y = height * -(2.0 * (t.pos[1] - 1.5));
 
 				evt->setExtraDataInt(index, round(x - xOffset));
 				evt->setExtraDataInt(index+ 1, round(y - yOffset));
-			 }
+			}
 
-		 }
+		}
 
-         mysInstance->unlockEvents();
-         //lastt = curt;
-     //}
+		// Update last event timestamp of trackable
+		trackerInfo.lastUpdateTime = curt;
+		trackerNames[id] = trackerInfo;
+     }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

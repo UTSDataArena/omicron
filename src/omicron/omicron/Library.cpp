@@ -91,6 +91,7 @@ bool Library::open(const String& fileName)
     }
     else
     {
+        oflog(Debug, "[Library::open] attempting to open %1%", %(fileName.c_str()));
 #ifdef OMICRON_OS_WIN
         myImpl->lp = LoadLibrary(fileName.c_str());
 #elif defined( RTLD_LOCAL )
@@ -100,7 +101,7 @@ bool Library::open(const String& fileName)
 #endif
         if(!myImpl->lp)
         {
-            ofwarn("[Library::open] can't open library %1%", %fileName);
+            ofwarn("[Library::open] can't open library %1%: %2%", %fileName %dlerror());
             return false;
         }
     }

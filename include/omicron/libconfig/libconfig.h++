@@ -197,7 +197,7 @@ class LIBCONFIGXX_API Setting
   Format _format;
 
   void assertType(Type type) const
-    throw(SettingTypeException);
+    /* throw(SettingTypeException) */;
   static Setting & wrapSetting(config_setting_t *setting);
 
   Setting(const Setting& other); // not supported
@@ -213,36 +213,36 @@ class LIBCONFIGXX_API Setting
   inline Format getFormat() const throw() { return(_format); }
   void setFormat(Format format) throw();
 
-  operator bool() const throw(SettingTypeException);
-  operator int() const throw(SettingTypeException);
-  operator unsigned int() const throw(SettingTypeException);
-  operator long() const throw(SettingTypeException);
-  operator unsigned long() const throw(SettingTypeException);
-  operator long long() const throw(SettingTypeException);
-  operator unsigned long long() const throw(SettingTypeException);
-  operator double() const throw(SettingTypeException);
-  operator float() const throw(SettingTypeException);
-  operator const char *() const throw(SettingTypeException);
-  operator std::string() const throw(SettingTypeException);
+  operator bool() const /* throw(SettingTypeException) */;
+  operator int() const /* throw(SettingTypeException) */;
+  operator unsigned int() const /* throw(SettingTypeException) */;
+  operator long() const /* throw(SettingTypeException) */;
+  operator unsigned long() const /* throw(SettingTypeException) */;
+  operator long long() const /* throw(SettingTypeException) */;
+  operator unsigned long long() const /* throw(SettingTypeException) */;
+  operator double() const /* throw(SettingTypeException) */;
+  operator float() const /* throw(SettingTypeException) */;
+  operator const char *() const /* throw(SettingTypeException) */;
+  operator std::string() const /* throw(SettingTypeException) */;
 
-  Setting & operator=(bool value) throw(SettingTypeException);
-  Setting & operator=(int value) throw(SettingTypeException);
-  Setting & operator=(long value) throw(SettingTypeException);
-  Setting & operator=(const long long &value) throw(SettingTypeException);
-  Setting & operator=(const double &value) throw(SettingTypeException);
-  Setting & operator=(float value) throw(SettingTypeException);
-  Setting & operator=(const char *value) throw(SettingTypeException);
-  Setting & operator=(const std::string &value) throw(SettingTypeException);
+  Setting & operator=(bool value) /* throw(SettingTypeException) */;
+  Setting & operator=(int value) /* throw(SettingTypeException) */;
+  Setting & operator=(long value) /* throw(SettingTypeException) */;
+  Setting & operator=(const long long &value) /* throw(SettingTypeException) */;
+  Setting & operator=(const double &value) /* throw(SettingTypeException) */;
+  Setting & operator=(float value) /* throw(SettingTypeException) */;
+  Setting & operator=(const char *value) /* throw(SettingTypeException) */;
+  Setting & operator=(const std::string &value) /* throw(SettingTypeException) */;
 
   Setting & operator[](const char * key) const
-    throw(SettingTypeException, SettingNotFoundException);
+    /* throw(SettingTypeException, SettingNotFoundException) */;
 
   inline Setting & operator[](const std::string & key) const
-    throw(SettingTypeException, SettingNotFoundException)
+    /* throw(SettingTypeException, SettingNotFoundException) */
   { return(operator[](key.c_str())); }
 
   Setting & operator[](int index) const
-    throw(SettingTypeException, SettingNotFoundException);
+    /* throw(SettingTypeException, SettingNotFoundException) */;
 
   bool lookupValue(const char *name, bool &value) const throw();
   bool lookupValue(const char *name, int &value) const throw();
@@ -292,23 +292,23 @@ class LIBCONFIGXX_API Setting
   { return(lookupValue(name.c_str(), value)); }
 
   void remove(const char *name)
-    throw(SettingTypeException, SettingNotFoundException);
+    /* throw(SettingTypeException, SettingNotFoundException) */;
 
   inline void remove(const std::string & name)
-    throw(SettingTypeException, SettingNotFoundException)
+    /* throw(SettingTypeException, SettingNotFoundException) */
   { remove(name.c_str()); }
 
   void remove(unsigned int idx)
-    throw(SettingTypeException, SettingNotFoundException);
+    /* throw(SettingTypeException, SettingNotFoundException) */;
 
   inline Setting & add(const std::string & name, Type type)
-    throw(SettingNameException, SettingTypeException)
+    /* throw(SettingNameException, SettingTypeException) */
   { return(add(name.c_str(), type)); }
 
   Setting & add(const char *name, Type type)
-    throw(SettingNameException, SettingTypeException);
+    /* throw(SettingNameException, SettingTypeException) */;
 
-  Setting & add(Type type) throw(SettingTypeException);
+  Setting & add(Type type) /* throw(SettingTypeException) */;
 
   inline bool exists(const std::string & name) const throw()
   { return(exists(name.c_str())); }
@@ -320,8 +320,8 @@ class LIBCONFIGXX_API Setting
   std::string getPath() const;
   int getIndex() const throw();
 
-  const Setting & getParent() const throw(SettingNotFoundException);
-  Setting & getParent() throw(SettingNotFoundException);
+  const Setting & getParent() const /* throw(SettingNotFoundException) */;
+  Setting & getParent() /* throw(SettingNotFoundException) */;
 
   bool isRoot() const throw();
 
@@ -369,21 +369,21 @@ class LIBCONFIGXX_API Config
   void setTabWidth(unsigned short width) throw();
   unsigned short getTabWidth() const throw();
 
-  void read(FILE *stream) throw(ParseException);
+  void read(FILE *stream) /* throw(ParseException) */;
   void write(FILE *stream) const;
 
-  void readString(const char *str) throw(ParseException);
-  inline void readString(const std::string &str) throw(ParseException)
+  void readString(const char *str) /* throw(ParseException) */;
+  inline void readString(const std::string &str) /* throw(ParseException) */
   { return(readString(str.c_str())); }
 
-  void readFile(const char *filename) throw(FileIOException, ParseException);
-  void writeFile(const char *filename) throw(FileIOException);
+  void readFile(const char *filename) /* throw(FileIOException, ParseException) */;
+  void writeFile(const char *filename) /* throw(FileIOException) */;
 
   inline Setting & lookup(const std::string &path) const
-    throw(SettingNotFoundException)
+    /* throw(SettingNotFoundException) */
   { return(lookup(path.c_str())); }
 
-  Setting & lookup(const char *path) const throw(SettingNotFoundException);
+  Setting & lookup(const char *path) const /* throw(SettingNotFoundException) */;
 
   inline bool exists(const std::string & path) const throw()
   { return(exists(path.c_str())); }

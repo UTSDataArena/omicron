@@ -15,8 +15,7 @@
  * 
  * Redistributions of source code must retain the above copyright notice, this 
  * list of conditions and the following disclaimer. Redistributions in binary 
- * form must reproduce the above copyright notice, this list of conditions and 
- * the following disclaimer in the documentation and/or other materials provided 
+ * form must reproduce the above copyright notice, this list of conditions and * the following disclaimer in the documentation and/or other materials provided
  * with the distribution. 
  * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
@@ -38,8 +37,8 @@
 // multiple times in different configurations within the same translation unit.
 
 // if OMICRON_CONNECTOR_LEAN_AND_MEAN, only define the omicron::EventBase and omicronConnector::EventData classes.
-// Skip the OmicronConnectorClient class and all socket functionality.
-#ifndef OMICRON_CONNECTOR_LEAN_AND_MEAN
+// Skip the OmicronConnectorClient class and all socket functionality unless Inputserver 
+#if !defined(OMICRON_CONNECTOR_LEAN_AND_MEAN) || defined(OMICRON_USE_INPUTSERVER)
     #ifdef WIN32
         #define OMICRON_OS_WIN
         #pragma comment(lib, "Ws2_32.lib")
@@ -71,17 +70,15 @@
             iResult = WSAStartup(MAKEWORD(2,2), &wsaData); \
             if (iResult != 0) { \
                 printf("OmicronConnectorClient: WSAStartup failed: %d\n", iResult); \
-                return; \
-            } else { \
-                printf("OmicronConnectorClient: Winsock initialized \n"); \
             }
-
     #else
         #define SOCKET_CLOSE(sock) close(sock);
         #define SOCKET_CLEANUP()
         #define SOCKET_INIT()
         #define SOCKET int
         #define PRINT_SOCKET_ERROR(msg) printf(msg" - socket error: %s\n", strerror(errno));
+		#define SOCKET_ERROR            (-1)
+		#define INVALID_SOCKET            (0) // already defined as -1 in vrn.Shared.h
     #endif
 
     #define OI_READBUF(type, buf, offset, val) val = *((type*)&buf[offset]); offset += sizeof(type);
@@ -99,49 +96,127 @@ namespace omicron
         */
     enum KeyCode
     {
-        KC_ESCAPE = 256,
-        KC_BACKSPACE,
-        KC_RETURN,
-        KC_TAB,
-        KC_HOME,
-        KC_LEFT,
-        KC_UP,
-        KC_RIGHT,
-        KC_DOWN,
-        KC_PAGE_UP,
-        KC_PAGE_DOWN,
-        KC_END,
-        KC_F1,
-        KC_F2,
-        KC_F3,
-        KC_F4,
-        KC_F5,
-        KC_F6,
-        KC_F7,
-        KC_F8,
-        KC_F9,
-        KC_F10,
-        KC_F11,
-        KC_F12,
-        KC_F13,
-        KC_F14,
-        KC_F15,
-        KC_F16,
-        KC_F17,
-        KC_F18,
-        KC_F19,
-        KC_F20,
-        KC_F21,
-        KC_F22,
-        KC_F23,
-        KC_F24,
-        KC_SHIFT_L,
-        KC_SHIFT_R,
-        KC_CONTROL_L,
-        KC_CONTROL_R,
-        KC_ALT_L,
-        KC_ALT_R,
-        KC_VOID = 0xFFFFFF /* == XK_VoidSymbol */
+        KEY_UNKNOWN  = -1,
+        KEY_SPACE   =32,
+        KEY_APOSTROPHE =39, /* ' */
+        KEY_COMMA  =44, /* , */ 
+        KEY_MINUS  =45 ,/* - */
+        KEY_PERIOD  =46 ,/* . */
+        KEY_SLASH  =47 ,/* / */
+        KEY_0  =48,
+        KEY_1  =49,
+        KEY_2  =50,
+        KEY_3  =51,
+        KEY_4  =52,
+        KEY_5  =53,
+        KEY_6  =54,
+        KEY_7  =55,
+        KEY_8  =56,
+        KEY_9  =57,
+        KEY_SEMICOLON  =59,/* ; */
+        KEY_EQUAL  =61,/* = */
+        KEY_A  =65,
+        KEY_B  =66,
+        KEY_C  =67,
+        KEY_D  =68,
+        KEY_E  =69,
+        KEY_F  =70,
+        KEY_G  =71,
+        KEY_H  =72,
+        KEY_I  =73,
+        KEY_J  =74,
+        KEY_K  =75,
+        KEY_L  =76,
+        KEY_M  =77,
+        KEY_N  =78,
+        KEY_O  =79,
+        KEY_P  =80,
+        KEY_Q  =81,
+        KEY_R  =82,
+        KEY_S  =83,
+        KEY_T  =84,
+        KEY_U  =85,
+        KEY_V  =86,
+        KEY_W  =87,
+        KEY_X  =88,
+        KEY_Y  =89,
+        KEY_Z  =90,
+        KEY_LEFT_BRACKET  =91, /* [ */
+        KEY_BACKSLASH  =92, /* \ */
+        KEY_RIGHT_BRACKET  =93, /* ] */
+        KEY_GRAVE_ACCENT  =96, /* ` */
+        KEY_WORLD_1  =161, /* non-US #1 */
+        KEY_WORLD_2  =162, /* non-US #2 */
+        KEY_ESCAPE  =256,
+        KEY_ENTER  =257,
+        KEY_TAB  =258,
+        KEY_BACKSPACE  =259,
+        KEY_INSERT  =260,
+        KEY_DELETE  =261,
+        KEY_RIGHT  =262,
+        KEY_LEFT  =263,
+        KEY_DOWN  =264,
+        KEY_UP  =265,
+        KEY_PAGE_UP  =266,
+        KEY_PAGE_DOWN  =267,
+        KEY_HOME  =268,
+        KEY_END  =269,
+        KEY_CAPS_LOCK  =280,
+        KEY_SCROLL_LOCK  =281,
+        KEY_NUM_LOCK  =282,
+        KEY_PRINT_SCREEN  =283,
+        KEY_PAUSE  =284,
+        KEY_F1  =290,
+        KEY_F2  =291,
+        KEY_F3  =292,
+        KEY_F4  =293,
+        KEY_F5  =294,
+        KEY_F6  =295,
+        KEY_F7  =296,
+        KEY_F8  =297,
+        KEY_F9  =298,
+        KEY_F10  =299,
+        KEY_F11  =300,
+        KEY_F12  =301,
+        KEY_F13  =302,
+        KEY_F14  =303,
+        KEY_F15  =304,
+        KEY_F16  =305,
+        KEY_F17  =306,
+        KEY_F18  =307,
+        KEY_F19  =308,
+        KEY_F20  =309,
+        KEY_F21  =310,
+        KEY_F22  =311,
+        KEY_F23  =312,
+        KEY_F24  =313,
+        KEY_F25  =314,
+        KEY_KP_0  =320,
+        KEY_KP_1  =321,
+        KEY_KP_2  =322,
+        KEY_KP_3  =323,
+        KEY_KP_4  =324,
+        KEY_KP_5  =325,
+        KEY_KP_6  =326,
+        KEY_KP_7  =327,
+        KEY_KP_8  =328,
+        KEY_KP_9  =329,
+        KEY_KP_DECIMAL  =330,
+        KEY_KP_DIVIDE  =331,
+        KEY_KP_MULTIPLY  =332,
+        KEY_KP_SUBTRACT  =333,
+        KEY_KP_ADD  =334,
+        KEY_KP_ENTER  =335,
+        KEY_KP_EQUAL  =336,
+        KEY_LEFT_SHIFT  =340,
+        KEY_LEFT_CONTROL  =341,
+        KEY_LEFT_ALT  =342,
+        KEY_LEFT_SUPER  =343,
+        KEY_RIGHT_SHIFT  =344,
+        KEY_RIGHT_CONTROL  =345,
+        KEY_RIGHT_ALT  =346,
+        KEY_RIGHT_SUPER  =347,
+        KEY_MENU  =348
     };
 
     class EventBase
@@ -158,7 +233,10 @@ namespace omicron
             ServiceTypeGeneric, 
             ServiceTypeBrain, 
             ServiceTypeWand, 
-            ServiceTypeSpeech }; 
+            ServiceTypeSpeech,
+			ServiceTypeImage,
+			ServiceTypeAudio
+		}; 
 
         //! #PYAPI Supported event types.
         //! The python API exposed this enum in the EventType object.
@@ -290,7 +368,8 @@ namespace omicron
             ExtraDataIntArray,
             ExtraDataVector3Array,
             ExtraDataString,
-            ExtraDataKinectSpeech
+            ExtraDataKinectSpeech,
+			ExtraDataByte
         };
 
         //! Joint enumerations for Kinect (Uses OpenNI's enumerations with additional Kinect for Windows values)
@@ -352,7 +431,8 @@ namespace omicronConnector
 {
 #ifndef OMICRON_EVENTDATA_DEFINED
 #define OMICRON_EVENTDATA_DEFINED
-
+#define DEFAULT_BUFLEN 1024 // Moved out of OmicronConnectorClient as NetClient/InputServer also uses this
+#define DEFAULT_LRGBUFLEN 51200 // Moved out of OmicronConnectorClient as NetClient/InputServer also uses this
     #define OFLOAT_PTR(x) *((float*)&x)
     #define OINT_PTR(x) *((int*)&x)
 
@@ -373,9 +453,13 @@ namespace omicronConnector
         float orz;
         float orw;
 
-        static const int ExtraDataSize = 1024;
+        static const int ExtraDataSize = DEFAULT_LRGBUFLEN;
         unsigned int extraDataType;
+#if !defined(__GNUC__)
         unsigned int extraDataItems;
+#else
+        int extraDataItems; // GCC complains of signed-unsigned comparison
+#endif
         unsigned int extraDataMask;
         unsigned char extraData[ExtraDataSize];
 
@@ -412,6 +496,8 @@ namespace omicronConnector
 
 // if OMICRON_CONNECTOR_LEAN_AND_MEAN, only define the omicron::EventBase and omicronConnector::EventData classes.
 // Skip the OmicronConnectorClient class and all socket functionality.
+//#define DEFAULT_LRGBUFLEN 51200 // Moved out of OmicronConnectorClient as NetClient/InputServer also uses this
+
 #ifndef OMICRON_CONNECTOR_LEAN_AND_MEAN
 #ifndef OMICRON_CONNECTORCLIENT_DEFINED
 #define OMICRON_CONNECTORCLIENT_DEFINED
@@ -430,13 +516,13 @@ namespace omicronConnector
         OmicronConnectorClient(IOmicronConnectorClientListener* clistener): listener(clistener)
         {}
 
-        void connect(const char* server, int port = 27000, int dataPort = 7000);
+        bool connect(const char* server, int port = 27000, int dataPort = 7000, int mode = 0);
         void poll();
         void dispose();
         void setDataport(int);
-
+		bool sendMsg(const char*);
     private:
-        void initHandshake();
+        bool initHandshake(int);
         void parseDGram(int);
 
     private:
@@ -455,8 +541,7 @@ namespace omicronConnector
         int serverPort;
         int dataPort;
 
-        #define DEFAULT_BUFLEN 1024
-        char recvbuf[DEFAULT_BUFLEN];
+        char recvbuf[DEFAULT_LRGBUFLEN];
         int iResult, iSendResult;
 
         int SenderAddrSize;
@@ -468,7 +553,7 @@ namespace omicronConnector
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //template<typename ListenerType>
-    inline void OmicronConnectorClient::connect(const char* server, int port, int pdataPort) 
+    inline bool OmicronConnectorClient::connect(const char* server, int port, int pdataPort, int mode) 
     {
         serverAddress = server;
         serverPort = port;
@@ -493,47 +578,52 @@ namespace omicronConnector
             printf("omicronConnectorClient: Unable to connect to server '%s' on port '%d'", serverAddress, serverPort);
             PRINT_SOCKET_ERROR("");
             SOCKET_CLEANUP();
-            return;
+            return false;
         }
 
         // Generate the socket
         ConnectSocket = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 
         // Connect to server
-        int result = ::connect(ConnectSocket, res->ai_addr, res->ai_addrlen);
+        int result = ::connect(ConnectSocket, res->ai_addr, (int)res->ai_addrlen);
 
         if (result == -1) 
         {
             printf("omicronConnectorClient: Unable to connect to server '%s' on port '%d'", serverAddress, serverPort);
             PRINT_SOCKET_ERROR("");
             SOCKET_CLEANUP();
-            return;
+            return false;
         }
         else
         {
             printf("NetService: Connected to server '%s' on port '%d'!\n", serverAddress, serverPort);
         }
-        initHandshake();
-
+        return initHandshake(mode);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //template<typename ListenerType>
-    inline void OmicronConnectorClient::initHandshake() 
+    inline bool OmicronConnectorClient::initHandshake(int mode) 
     {
         char sendbuf[50];
-        sprintf(sendbuf, "omicron_data_on,%d", dataPort);
+		if (mode == 1)
+		{
+			sprintf(sendbuf, "omicron_data_in,%d", dataPort);
+		}
+		else
+		{
+			sprintf(sendbuf, "omicron_data_on,%d", dataPort);
+		}
         printf("NetService: Sending handshake: '%s'\n", sendbuf);
 
-        iResult = send(ConnectSocket, sendbuf, (int) strlen(sendbuf), 0);
-
-        if (iResult == -1) 
-        {
-            PRINT_SOCKET_ERROR("NetService: Send failed");
-            SOCKET_CLOSE(ConnectSocket);
-            SOCKET_CLEANUP()
-            return;
-        }
+		bool result = sendMsg(sendbuf);
+		if (!result)
+		{
+			PRINT_SOCKET_ERROR("NetService: Send failed");
+			SOCKET_CLOSE(ConnectSocket);
+			SOCKET_CLEANUP();
+			return false;
+		}
 
         sockaddr_in RecvAddr;
         SenderAddrSize = sizeof(SenderAddr);
@@ -545,7 +635,21 @@ namespace omicronConnector
         RecvAddr.sin_addr.s_addr = htonl(INADDR_ANY);
         ::bind(RecvSocket, (const sockaddr*) &RecvAddr, sizeof(RecvAddr));
         readyToReceive = true;
+		return true;
     }
+
+	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//template<typename ListenerType>
+	inline bool OmicronConnectorClient::sendMsg(const char* sendbuf)
+	{
+		int iResult = send(ConnectSocket, sendbuf, (int)strlen(sendbuf), 0);
+
+		if (iResult == -1)
+		{
+			return false;
+		}
+		return true;
+	}
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //template<typename ListenerType>
@@ -569,12 +673,9 @@ namespace omicronConnector
             timeout.tv_sec  = 0;
             timeout.tv_usec = 0;
 
-            do
-            {
-                // Check if UDP socket has data waiting to be read before socket blocks to attempt to read.
-                result = select(RecvSocket+1, &ReadFDs, &WriteFDs, &ExceptFDs, &timeout);
-                if( result > 0 ) parseDGram(result);
-            } while(result > 0);
+			// Check if UDP socket has data waiting to be read before socket blocks to attempt to read.
+			result = select(RecvSocket + 1, &ReadFDs, &WriteFDs, &ExceptFDs, &timeout);
+			if (result > 0) parseDGram(result);
         }
     }
 
@@ -592,11 +693,11 @@ namespace omicronConnector
         iResult = SOCKET_CLOSE(RecvSocket);
         if (iResult == -1) 
         {
-            PRINT_SOCKET_ERROR("NetService: Closesocket failed");
+            PRINT_SOCKET_ERROR("NetService: Closesocket failed\n");
             return;
         }
         SOCKET_CLEANUP();
-        printf("NetService: Shutting down.");
+        printf("NetService: Cleanup Complete.\n");
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -605,14 +706,16 @@ namespace omicronConnector
     {
         result = recvfrom(RecvSocket, 
             recvbuf,
-            DEFAULT_BUFLEN-1,
+            DEFAULT_LRGBUFLEN,
             0,
             (sockaddr *)&SenderAddr, 
             (socklen_t*)&SenderAddrSize);
         if(result > 0)
         {
             int offset = 0;
+#if !defined (__GNUC__) // gcc with Werror does not like unused variables
             int msgLen = result - 1;
+#endif
             char* eventPacket = recvbuf;
 
             EventData ed;
@@ -634,7 +737,15 @@ namespace omicronConnector
             OI_READBUF(unsigned int, eventPacket, offset, ed.extraDataType); 
             OI_READBUF(unsigned int, eventPacket, offset, ed.extraDataItems); 
             OI_READBUF(unsigned int, eventPacket, offset, ed.extraDataMask); 
-            memcpy(ed.extraData, &eventPacket[offset], EventData::ExtraDataSize);
+
+			if (ed.extraDataItems > EventData::ExtraDataSize)
+			{
+				memcpy(ed.extraData, &eventPacket[offset], DEFAULT_LRGBUFLEN);
+			}
+			else
+			{
+				memcpy(ed.extraData, &eventPacket[offset], EventData::ExtraDataSize);
+			}
 
             listener->onEvent(ed);
         } 

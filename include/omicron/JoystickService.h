@@ -6,9 +6,9 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "vrpn_Analog.h"
-#include "vrpn_Button.h"
-#include "vrpn_Analog_Output.h"
+#include "omicron/vrpn/vrpn_Analog.h"
+#include "omicron/vrpn/vrpn_Button.h"
+#include "omicron/vrpn/vrpn_Analog_Output.h"
 
 namespace omicron
 {
