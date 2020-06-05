@@ -1,11 +1,11 @@
 /**************************************************************************************************
  * THE OMICRON PROJECT
  *-------------------------------------------------------------------------------------------------
- * Copyright 2010-2014		Electronic Visualization Laboratory, University of Illinois at Chicago
+ * Copyright 2010-2019		Electronic Visualization Laboratory, University of Illinois at Chicago
  * Authors:										
  *  Arthur Nishimoto		anishimoto42@gmail.com
  *-------------------------------------------------------------------------------------------------
- * Copyright (c) 2010-2014, Electronic Visualization Laboratory, University of Illinois at Chicago
+ * Copyright (c) 2010-2019, Electronic Visualization Laboratory, University of Illinois at Chicago
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted 
  * provided that the following conditions are met:
@@ -37,7 +37,8 @@ struct Touch{
 	enum TouchState { INACTIVE, ACTIVE, IDLE };
 	int state;
 
-	int ID;
+	int ID = -1;
+	int groupID;
 	float xPos;
 	float yPos;
 	float xWidth;
@@ -48,6 +49,9 @@ struct Touch{
 	float lastYPos;
 	int prevPosResetTime;
 	int prevPosTimer;
+
+	float initXPos;
+	float initYPos;
 
 	int idleTime;
 
@@ -66,11 +70,13 @@ namespace omicron {
 		private:
 			TouchGestureManager* gestureManager;
 			Touch centerTouch;
+			Touch mainTouch; // Touch that created/manages the group
 
 			bool remove;
 			Event::Type eventType; // Down, Move, Up
 			int gestureFlag; // Single touch, double, multi, etc.
-			int ID;
+			int ID; // Original touch ID that created group
+			int mainID; // Touch ID that manages group (usually the original, but can change if original touch is released)
 			float xPos;
 			float yPos;
 			float init_xPos;
@@ -105,6 +111,7 @@ namespace omicron {
 			bool threeFingerGestureTriggered;
 			bool bigTouchGestureTriggered;
 			bool zoomGestureTriggered;
+			bool singleClickTriggered;
 			bool doubleClickTriggered;
 		public:
 			TouchGroup(TouchGestureManager*, int);
@@ -122,12 +129,23 @@ namespace omicron {
 
 			int getTouchCount();
 			Touch getCenterTouch();
+			Touch getMainTouch();
 			int getGestureFlag();
 			bool isRemovable();
 			void setRemove();
 
-			float getZoomDelta();
+			map<int, Touch> getTouchList();
+			void lockTouchList();
+			void unlockTouchList();
 
+			float getZoomDelta();
+			float getDiameter();
+			float getLongRangeDiameter();
+			
+			bool isSingleClickTriggered();
+			bool isDoubleClickTriggered();
+
+			void removeTouch(int id);
 			Event::Type getEventType();
 	};
 
@@ -136,21 +154,25 @@ namespace omicron {
 
 	public:
 		TouchGestureManager();
+		void setup(Setting&);
 		void registerPQService(Service*);
 		void setMaxTouchIDs(int);
 
 		void poll();
 		
 		bool addTouch(Event::Type eventType, Touch touch);
+		TouchGroup* getTouchGroup(int ID);
 		void setNextID( int ID );
 
-		void generatePQServiceEvent(Event::Type eventType, Touch touch, int advancedGesture);
-		void generateZoomEvent(Event::Type eventType, Touch touch, float deltaDistance);
+		void generatePQServiceEvent(Event::Type eventType, TouchGroup* touchGroup, int advancedGesture);
+		void generateZoomEvent(Event::Type eventType, TouchGroup* touchGroup, float deltaDistance);
+		//void generatePQServiceEvent(Event::Type eventType, Touch touch, int advancedGesture);
+		//void generatePQServiceEvent(Event::Type eventType, Touch mainTouch, map<int, Touch> touchList, int advancedGesture);
 	private:
 		Service* pqsInstance;
 		Lock* touchListLock;
+		map<int, Touch> rawTouchList;
 		Lock* touchGroupListLock;
-		map<int,Touch> touchList;
 		map<int,TouchGroup*> touchGroupList;
 		set<int> groupedIDs;
 

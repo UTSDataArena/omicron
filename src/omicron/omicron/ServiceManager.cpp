@@ -91,6 +91,9 @@
 #ifdef OMICRON_USE_THINKGEAR
 	#include "omicron/ThinkGearService.h"
 #endif
+#ifdef OMICRON_USE_PSMOVEAPI
+    #include "omicron/PSMoveService.h"
+#endif
 using namespace omicron;
 using namespace std;
 
@@ -131,6 +134,9 @@ void ServiceManager::registerDefaultServices()
 	registerService("DirectInputService", (ServiceAllocator)DirectInputService::New);
 	registerService("LegacyDirectInputService", (ServiceAllocator)LegacyDirectInputService::New);
 	registerService("WiimoteService", (ServiceAllocator)WiimoteService::New);
+#endif
+#ifdef OMICRON_USE_PSMOVEAPI
+    registerService("PSMoveService", (ServiceAllocator)PSMoveService::New);
 #endif
 #ifdef OMICRON_USE_MOUSE
 	registerService("MouseService", (ServiceAllocator)MouseService::New);

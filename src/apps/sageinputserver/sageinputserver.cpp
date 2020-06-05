@@ -152,7 +152,7 @@ void SAGEInputServer::connectToSage(){
     Sleep(1000);
     printf("\nConnected to sage on: %s\n", sageHost);
 
-	createClient( sageHost, DIM_PORT, false, sock );
+	createClient( sageHost, DIM_PORT, DataMode::data_omicron, sock );
     sageConnected = true;
 }
 int triggerFlag = 0;
@@ -164,7 +164,7 @@ void SAGEInputServer::handleEvent(Event* evt){
 		//pointerToSAGEEvent( evt );
 
 		// SAGE2
-		char* eventPacket = createOmicronEventPacket(evt);
+		char* eventPacket = createOmicronPacketFromEvent(evt);
 		if( isSAGEConnected() )
 		{
 			sendToClients(eventPacket);
@@ -377,6 +377,7 @@ void main(int argc, char** argv)
         //ofmsg("------------------------loop %1%  av %2%", %i++ %av);
         if(av != 0)
         {
+			/*
             // TODO: Instead of copying the event list, we can lock the main one.
             Event evts[OMICRON_MAX_EVENTS];
             sm->getEvents(evts, OMICRON_MAX_EVENTS);
@@ -384,6 +385,7 @@ void main(int argc, char** argv)
             {
                 app.handleEvent(&evts[evtNum]);
             }
+			*/
         }
 #ifdef WIN32
 		Sleep(1);

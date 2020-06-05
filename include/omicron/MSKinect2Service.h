@@ -1,11 +1,11 @@
 /**************************************************************************************************
  * THE OMICRON PROJECT
  *-------------------------------------------------------------------------------------------------
- * Copyright 2010-2014		Electronic Visualization Laboratory, University of Illinois at Chicago
+ * Copyright 2010-2019		Electronic Visualization Laboratory, University of Illinois at Chicago
  * Authors:										
  *  Arthur Nishimoto		anishimoto42@gmail.com
  *-------------------------------------------------------------------------------------------------
- * Copyright (c) 2010-2014, Electronic Visualization Laboratory, University of Illinois at Chicago
+ * Copyright (c) 2010-2019, Electronic Visualization Laboratory, University of Illinois at Chicago
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted 
  * provided that the following conditions are met:
@@ -128,6 +128,10 @@ namespace omicron
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 class MSKinectService: public Service
 {
+	static const int        cColorWidth = 1920;
+	static const int        cColorHeight = 1080;
+	static const int        cDepthWidth = 512;
+	static const int        cDepthHeight = 424;
 public:
 	// Allocator function
 	MSKinectService();
@@ -153,9 +157,11 @@ private:
 
 	void pollBody();
 	void pollSpeech();
+	void pollColor();
+	void pollDepth();
 
-	void ProcessBody(INT64, int, IBody**);
-	void GenerateMocapEvent( IBody*, Joint* );
+	void ProcessBody(INT64, int, IBody**, Vector4*);
+	void GenerateMocapEvent(IBody*, Joint*, Vector4*);
 	void SkeletonPositionToEvent( Joint*, Event*, Event::OmicronSkeletonJoint, JointType );
 
 	void UpdateTrackedSkeletonSelection( int mode );
@@ -171,9 +177,14 @@ private:
 	HRESULT                 InitializeAudioStream();
     HRESULT                 CreateSpeechRecognizer();
     HRESULT                 LoadSpeechGrammar();
+	HRESULT                 LoadSpeechDictation();
 	HRESULT                 StartSpeechRecognition();
     void                    ProcessSpeech();
-	void					GenerateSpeechEvent( String, float );
+	void                    ProcessAudio();
+	String WStringToString(LPCWSTR speechWString);
+	void                    ProcessSpeechDictation();
+	void					GenerateSpeechEvent( String, float, float, float );
+	void					GenerateAudioEvent(float, float, float);
 #endif
 
 	///////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,6 +219,10 @@ private:
 	MSKinectService* mysInstance;
 	float myUpdateInterval;
 	float myCheckKinectInterval;
+	float lastUpdateTime;
+	float lastSendTime;
+	int serviceId = 0;
+	int currentPacket = 0;
 
 	static const int        cScreenWidth  = 320;
     static const int        cScreenHeight = 240;
@@ -228,12 +243,37 @@ private:
 	int						m_TrackedSkeletons;
 	int						skeletonEngineKinectID;
 
+	// Color reader
+	IColorFrameReader*      m_pColorFrameReader;
+	RGBQUAD*                m_pColorRGBX;
+	BYTE*					color_pImage;
+	bool					color_pImageReady = false;
+	int						currentFrameTimestamp;
+
+	// Color event buffer
+	byte					imageEventBuffer[41472];
+
+	// Depth reader
+	IDepthFrameReader*      m_pDepthFrameReader;
+	RGBQUAD*                m_pDepthRGBX;
+
 	std::map<String,IKinectSensor*> sensorList;
 	std::map<String,int> sensorIndexList;
 
 	bool debugInfo;
 	bool caveSimulator;
+	bool enableKinectBody;
+	bool enableKinectColor;
+
+	bool enableKinectDepth;
+	bool depthReliableDataOnly;
+	bool highDetailDepth;
+	float lowDetailMaxDistance;
+
 	bool enableKinectAudio;
+	bool enableKinectSpeech;
+	bool enableKinectSpeechGrammar;
+	bool enableKinectSpeechDictation;
 	int caveSimulatorHeadID;
 	int caveSimulatorWandID;
 	Vector3f kinectOriginOffset;
@@ -241,11 +281,17 @@ private:
 #ifdef OMICRON_USE_KINECT_FOR_WINDOWS_AUDIO
     String                  speechGrammerFilePath;
 
-    // A single audio beam off the Kinect sensor.
+    // A single audio beam off the Kinect sensor (for speech)
     IAudioBeam*             m_pAudioBeam;
+
+	// Secondary audio beam off the Kinect sensor (for beam audio)
+	IAudioBeam*             m_pAudioBeam2;
 
     // An IStream derived from the audio beam, used to read audio samples
     IStream*                m_pAudioStream;
+
+	// An IStream derived from the audio beam, used to read audio samples
+	IStream*                m_pAudioStream2;
 
     // Stream for converting 32bit Audio provided by Kinect to 16bit required by speeck
     KinectAudioStream*     m_p16BitAudioStream;
@@ -257,10 +303,12 @@ private:
     ISpRecognizer*          m_pSpeechRecognizer;
 
     // Speech recognizer context
-    ISpRecoContext*         m_pSpeechContext;
+	ISpRecoContext*         m_pSpeechContext;
+	ISpRecoContext*         m_pSpeechDictationContext;
 
     // Speech grammar
     ISpRecoGrammar*         m_pSpeechGrammar;
+	ISpRecoGrammar*         m_cpDictationGrammar;
 
     // Event triggered when we detect speech recognition
     HANDLE                  m_hSpeechEvent;
@@ -269,6 +317,34 @@ private:
     bool m_bSpeechActive;
 
 	float confidenceThreshold;
+	float beamConfidenceThreshold;
+
+	// Time interval, in milliseconds, for timer that drives audio capture.
+	static const int        cAudioReadTimerInterval = 50;
+
+	// Audio samples per second in Kinect audio stream
+	static const int        cAudioSamplesPerSecond = 16000;
+
+	// Number of float samples in the audio beffer we allocate for reading every time the audio capture timer fires
+	// (should be larger than the amount of audio corresponding to cAudioReadTimerInterval msec).
+	static const int        cAudioBufferLength = 2 * cAudioReadTimerInterval * cAudioSamplesPerSecond / 1000;
+
+	// Number of energy samples that will be stored in the circular buffer.
+	// Always keep it higher than the energy display length to avoid overflow.
+	static const int        cEnergyBufferLength = 1000;
+
+	// Number of audio samples captured from Kinect audio stream accumulated into a single
+	// energy measurement that will get displayed.
+	static const int        cAudioSamplesPerEnergySample = 40;
+
+	// Minimum energy of audio to display (in dB value, where 0 dB is full scale)
+	static const int        cMinEnergy = 0;
+
+	// Sum of squares of audio samples being accumulated to compute the next energy value.
+	float                   m_fAccumulatedSquareSum;
+
+	// Number of audio samples accumulated so far to compute the next energy value.
+	int                     m_nAccumulatedSampleCount;
 #endif
 };
 

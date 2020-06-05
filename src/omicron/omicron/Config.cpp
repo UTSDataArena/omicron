@@ -308,6 +308,9 @@ void insertSetting(Setting& to, const Setting& from)
     case Setting::TypeList:
     case Setting::TypeGroup:
         for(int i = 0; i < from.getLength(); i++) insertSetting(copy, from[i]);
+	case Setting::TypeNone:
+	default:
+		break;
     }
 }
 

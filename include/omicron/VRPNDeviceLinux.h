@@ -8,7 +8,7 @@
 // for vrpn_HidAcceptor (ptr only), etc
 // #include "vrpn_Microsoft_Controller_Raw.h"
 // linux-based joystick
-#include "vrpn_Joylin.h"
+#include "omicron/vrpn/vrpn_Joylin.h"
 
 namespace omicron {
 /*
