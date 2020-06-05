@@ -33,7 +33,7 @@ int nextBufferID = 10; // Buffers 0 - 9 are considered reserved by the sound sys
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 Sound::Sound()
 {
-	this->soundName = "Sound_"+nextBufferID;
+	this->soundName = ostr("Sound_%1%", %nextBufferID);
 	bufferID = nextBufferID;
 	nextBufferID++;
 	

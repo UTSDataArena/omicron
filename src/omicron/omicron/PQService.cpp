@@ -1,11 +1,11 @@
 /********************************************************************************************************************** 
 * THE OMICRON PROJECT
  *---------------------------------------------------------------------------------------------------------------------
- * Copyright 2010-2014							Electronic Visualization Laboratory, University of Illinois at Chicago
+ * Copyright 2010-2019							Electronic Visualization Laboratory, University of Illinois at Chicago
  * Authors:										
  *  Arthur Nishimoto								anishimoto42@gmail.com
  *---------------------------------------------------------------------------------------------------------------------
- * Copyright (c) 2010-2014, Electronic Visualization Laboratory, University of Illinois at Chicago
+ * Copyright (c) 2010-2019, Electronic Visualization Laboratory, University of Illinois at Chicago
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
  * following conditions are met:
@@ -24,7 +24,6 @@
  *********************************************************************************************************************/
 #include "omicron/PQService.h"
 #include "omicron/StringUtils.h"
-#include <Windows.h>
 
 using namespace omicron;
 
@@ -39,7 +38,7 @@ bool PQService::showStreamSpeed = false;
 int PQService::lastIncomingEventTime = 0;
 int PQService::eventCount = 0;
 Vector2i PQService::serverResolution = Vector2i(1920,1080);
-Vector2i PQService::screenOffset = Vector2i(0,0);
+Vector2i PQService::touchOffset = Vector2i(0, 0);
 Vector2i PQService::rawDataResolution = Vector2i(1920,1080);
 bool PQService::hasCustomRawDataResolution = false;
 
@@ -64,20 +63,24 @@ void PQService::setup(Setting& settings)
 	{
 		useGestureManager = settings["useGestureManager"];
 		if( useGestureManager )
+		{
 			omsg("PQService: Gesture Manager Enabled");
+			touchGestureManager = new TouchGestureManager();
+			touchGestureManager->setup(settings);
+		}
 	}
 
 	if(settings.exists("normalizeData"))
 	{
 		normalizeData = settings["normalizeData"];
 		if( normalizeData )
-			printf("PQService: Normalizing data");
+			omsg("PQService: Normalizing data");
 	}
 
 	debugRawPQInfo = Config::getBoolValue("debugRawPQInfo", settings, false);
 	showStreamSpeed = Config::getBoolValue("showStreamSpeed", settings, false);
 
-	screenOffset = Config::getVector2iValue("screenOffset", settings, Vector2i(0,0) );
+	touchOffset = Config::getVector2iValue("touchOffset", settings, Vector2i(0, 0));
 
 	if(settings.exists("rawDataResolution"))
 	{
@@ -108,6 +111,153 @@ void PQService::poll()
 	{
 		touchGestureManager->poll();
 	}
+	
+#ifndef OMICRON_OS_WIN
+	// Check for response to query
+	if (tuioMsgSocket.receiveNextPacket(1)) {// Paramater is timeout in milliseconds. -1 (default) will wait indefinatly 
+		PacketReader pr(tuioMsgSocket.packetData(), tuioMsgSocket.packetSize());
+		Message *incoming_msg;
+
+		while (pr.isOk() && (incoming_msg = pr.popMessage()) != 0) {
+			// ofmsg("OSC In: %1%", %incoming_msg->addressPattern());
+			if (incoming_msg->addressPattern() == "/tuio/2Dcur")
+			{
+				bool MSG_SET = false;
+				bool MSG_ALIVE = false;
+
+				int curSetArg = 0;
+				int id = 0;
+				float x = 0;
+				float y = 0;
+				
+				std::vector<int> aliveIDs;
+				
+				Message::ArgReader arg(incoming_msg->arg());
+				while (arg.nbArgRemaining())
+				{
+					if (arg.isBlob()) {
+						std::vector<char> b; arg.popBlob(b);
+						//omsg("  received Blob");
+					}
+					else if (arg.isBool()) {
+						bool b; arg.popBool(b);
+						//ofmsg( "  received Bool %1%", %b );
+					}
+					else if (arg.isInt32()) {
+						int i; arg.popInt32(i);
+
+						if (MSG_SET)
+						{
+							id = i;
+						}
+						else if (MSG_ALIVE)
+						{
+							if (aliveState[i] == 0)
+							{
+								aliveState[i] = 1;
+							}
+							aliveIDs.push_back(i);
+						}
+						//ofmsg( "  received Int32 %1%", %i );
+					}
+					else if (arg.isInt64()) {
+						int64_t h; arg.popInt64(h);
+						//ofmsg( "  received Int64 %1%", %h );
+					}
+					else if (arg.isFloat()) {
+						float f; arg.popFloat(f);
+						switch (curSetArg)
+						{
+							case(2): x = f; break;
+							case(3): y = f; break;
+						}
+						//ofmsg( "  received Float %1%", %f );
+					}
+					else if (arg.isDouble()) {
+						double d; arg.popDouble(d);
+						//ofmsg( "  received Double %1%", %d );
+					}
+					else if (arg.isStr()) {
+						std::string s; arg.popStr(s);
+						//ofmsg( "  received Str %1%", %s );
+						if (s == "set")
+						{
+							MSG_SET = true;
+						}
+						else if (s == "alive")
+						{
+							MSG_ALIVE = true;
+							aliveIDs.clear();
+						}
+					}
+					curSetArg++;
+				}
+
+				if (MSG_SET)
+				{
+					TouchPoint tp;
+					tp.point_event = 0;
+					tp.id = id;
+					tp.x = x * serverResolution[0];
+					tp.y = y * serverResolution[1];
+					tp.dx = 10;
+					tp.dy = 10;
+
+					if (aliveState[id] == 1)
+					{
+						tp.point_event = 0;
+						aliveState[id] = 2;
+					}
+					else if (aliveState[id] == 2)
+					{
+						tp.point_event = 1;
+					}
+					
+					OnTouchPoint(tp);
+				}
+				else if (MSG_ALIVE)
+				{
+					map<int, int>::iterator it;
+
+					for ( it = aliveState.begin(); it != aliveState.end(); it++ )
+					{
+						int id = it->first;
+						int state = it->second;
+						bool stillAlive = false;
+						if (state == 2)
+						{
+							for (int i = 0; i < aliveIDs.size(); i++)
+							{
+								if (aliveIDs.at(i) == id)
+								{
+									stillAlive = true;
+									break;
+								}
+							}
+							
+							if( !stillAlive)
+							{
+								aliveState[id] = 0;
+								
+								Touch touch = touchlist[touchID[id]];
+								
+								TouchPoint tp;
+								tp.point_event = 2;
+								tp.id = id;
+								tp.x = touch.xPos * serverResolution[0];
+								tp.y = touch.yPos * serverResolution[1];
+								tp.dx = 10;
+								tp.dy = 10;
+								
+								OnTouchPoint(tp);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -125,10 +275,10 @@ int PQService::init()
 
 	// initialize the handle functions of gestures;
 	if( useGestureManager ){
-		touchGestureManager = new TouchGestureManager();
 		touchGestureManager->registerPQService(mysInstance);
 	}
 
+#ifdef OMICRON_OS_WIN
 	// set the functions on server callback
 	SetFuncsOnReceiveProc();
 
@@ -170,7 +320,22 @@ int PQService::init()
 	};
 	//
 	// start receiving
-	printf("PQService: send request succeeded, start recv.\n");
+	printf("PQService: send request succeeded, start recv.\n");;
+#else
+	int TUIO_Port = 3333;
+
+	
+
+	tuioMsgSocket.connectTo(server_ip, TUIO_Port);
+	tuioMsgSocket.bindTo(TUIO_Port);
+	
+	if (!tuioMsgSocket.isOk()) {
+		ofmsg( "PQService: connect to server failed: %1%", %tuioMsgSocket.errorMessage() );
+	} else {
+		ofmsg("PQService: connected to server on %1% using TUIO port %2%...", %server_ip %TUIO_Port);
+	}
+#endif
+
 	printf("PQService: Maximum blob size set to %i pixels \n", maxBlobSize);
 	return err_code;
 }
@@ -178,11 +343,13 @@ int PQService::init()
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void PQService::SetFuncsOnReceiveProc()
 {
+#ifdef OMICRON_OS_WIN
 	PFuncOnReceivePointFrame old_rf_func = SetOnReceivePointFrame(&PQService::OnReceivePointFrame,this);
 	//PFuncOnReceiveGesture old_rg_func = SetOnReceiveGesture(&PQService::OnReceiveGesture,this);
 	PFuncOnServerBreak old_svr_break = SetOnServerBreak(&PQService::OnServerBreak,NULL);
 	PFuncOnReceiveError old_rcv_err_func = SetOnReceiveError(&PQService::OnReceiveError,NULL);
 	PFuncOnGetDeviceInfo old_gdi_func = SetOnGetDeviceInfo(&PQService::OnGetDeviceInfo,NULL);
+#endif
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -233,8 +400,10 @@ void PQService::OnReceivePointFrame(int frame_id, int time_stamp, int moving_poi
 void PQService::OnServerBreak(void * param, void * call_back_object)
 {
 	// when the server break, disconenct server;
-	omsg("PQService: server disconnected");;
+	omsg("PQService: server disconnected");
+#ifdef OMICRON_OS_WIN
 	DisconnectServer();
+#endif
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -295,38 +464,38 @@ void PQService::OnTouchPoint(const TouchPoint & tp)
 		// Basically PQ IDs recycle after the ID is done. OmegaLib increments IDs
 		// until max ID is reached.
 		touch.ID = touchID[tp.id];
-
+		touch.groupID = touch.ID;
 		if( debugRawPQInfo )
 		{
-			ofmsg("PQService: Incoming touch point ID: %1% at (%2%,%3%) size: (%4%,%5%)", %touch.ID %tp.x %tp.y %tp.dx %tp.dx );
+			ofmsg("PQService: Incoming touch point ID: %1% type: %6% at (%2%,%3%) size: (%4%,%5%)", %touch.ID %tp.x %tp.y %tp.dx %tp.dy %tp.point_event);
 		}
 
-		touch.xPos = tp.x / (float)serverResolution[0] + screenOffset[0];
-		touch.yPos = tp.y / (float)serverResolution[1] + screenOffset[1];
+		touch.xPos = (tp.x + touchOffset[0]) / (float)serverResolution[0];
+		touch.yPos = (tp.y + touchOffset[1]) / (float)serverResolution[1];
 		touch.xWidth = tp.dx / (float)serverResolution[0];
 		touch.yWidth = tp.dy / (float)serverResolution[1];
 
 		touch.timestamp = timestamp;
 
-		if( isDebugEnabled() )
+		if (tp.point_event == TP_DOWN)
 		{
-			ofmsg("PQService: New touch created ID: %1% at (%2%,%3%) size: (%4%,%5%)", %touch.ID %touch.xPos %touch.yPos %touch.xWidth %touch.yWidth );
+			touch.ID = nextID;
+			touch.groupID = touch.ID;
+			touchID[tp.id] = nextID;
+			if (nextID < maxTouches - 100) {
+				nextID++;
+			}
+			else {
+				nextID = 0;
+			}
 		}
 
 		// Process touch gestures (this is done outside event creation
 		// for the case touchGestureManager needs to create an event)
 		if( useGestureManager ){
-
 			switch(tp.point_event)
 			{
 				case TP_DOWN:
-					touch.ID = nextID;
-					touchID[tp.id] = nextID;
-					if( nextID < maxTouches - 100 ){
-						nextID++;
-					} else {
-						nextID = 0;
-					}
 					touchGestureManager->addTouch( Event::Down, touch );
 					break;
 				case TP_MOVE:
@@ -337,41 +506,46 @@ void PQService::OnTouchPoint(const TouchPoint & tp)
 					break;
 			}
 			
-		} else {
-			mysInstance->lockEvents();
-
-			Event* evt = mysInstance->writeHead();
-			switch(tp.point_event)
-			{
-				case TP_DOWN:
-					evt->reset(Event::Down, Service::Pointer, nextID);
-					touchID[tp.id] = nextID;
-					if( nextID < maxTouches - 100 ){
-						nextID++;
-					} else {
-						nextID = 0;
-					}
-					break;
-				case TP_MOVE:
-					evt->reset(Event::Move, Service::Pointer, touch.ID);
-					touchlist[touch.ID] = touch;
-					break;
-				case TP_UP:
-					evt->reset(Event::Up, Service::Pointer, touch.ID);
-					touchlist.erase( touch.ID );
-					break;
-			}
-
-			evt->setPosition(touch.xPos, touch.yPos);
-
-			evt->setExtraDataType(Event::ExtraDataFloatArray);
-			evt->setExtraDataFloat(0, touch.xWidth);
-			evt->setExtraDataFloat(1, touch.yWidth);
-
-			//printf(" Server %d,%d Screen %d, %d\n", serverX, serverY, screenX, screenY );
-			//printf("      at %d,%d\n", tp.x, tp.y);
-			mysInstance->unlockEvents();
 		}
+		mysInstance->lockEvents();
+
+		Event* evt = mysInstance->writeHead();
+		switch(tp.point_event)
+		{
+			case TP_DOWN:
+				evt->reset(Event::Down, Service::Pointer, touch.ID);
+				if (isDebugEnabled())
+				{
+					ofmsg("PQService: Touch ID: %1% as DOWN event at (%2%,%3%) size: (%4%,%5%)", %touch.ID %touch.xPos %touch.yPos %touch.xWidth %touch.yWidth);
+				}
+				break;
+			case TP_MOVE:
+				evt->reset(Event::Move, Service::Pointer, touch.ID);
+				touchlist[touch.ID] = touch;
+				if (isDebugEnabled())
+				{
+					ofmsg("PQService: Touch ID: %1% as MOVE event at (%2%,%3%) size: (%4%,%5%)", %touch.ID %touch.xPos %touch.yPos %touch.xWidth %touch.yWidth);
+				}
+				break;
+			case TP_UP:
+				evt->reset(Event::Up, Service::Pointer, touch.ID);
+				touchlist.erase( touch.ID );
+				if (isDebugEnabled())
+				{
+					ofmsg("PQService: Touch ID: %1% as UP event at (%2%,%3%) size: (%4%,%5%)", %touch.ID %touch.xPos %touch.yPos %touch.xWidth %touch.yWidth);
+				}
+				break;
+		}
+
+		evt->setPosition(touch.xPos, touch.yPos);
+
+		evt->setExtraDataType(Event::ExtraDataFloatArray);
+		evt->setExtraDataFloat(0, touch.xWidth);
+		evt->setExtraDataFloat(1, touch.yWidth);
+
+		//printf(" Server %d,%d Screen %d, %d\n", serverX, serverY, screenX, screenY );
+		//printf("      at %d,%d\n", tp.x, tp.y);
+		mysInstance->unlockEvents();
 	}
 }
 
@@ -379,5 +553,8 @@ void PQService::OnTouchPoint(const TouchPoint & tp)
 void PQService::dispose() 
 {
 	mysInstance = NULL;
+#ifdef OMICRON_OS_WIN
 	DisconnectServer();
+#endif
 }
+
